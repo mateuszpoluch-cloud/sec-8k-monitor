@@ -6,7 +6,7 @@ from typing import List, Dict
 
 # Konfiguracja
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
-USER_AGENT = "SEC-Monitor/1.0 (mateusz.poluch@gmail.com)"  # ZMIEŃ NA SWÓJ EMAIL
+USER_AGENT = "SEC-Monitor/1.0 (Mateusz.poluch@gmai.com)"  # ZMIEŃ NA SWÓJ EMAIL
 
 # Lista spółek z ekosystemu AI/półprzewodników
 COMPANIES = {
@@ -585,18 +585,18 @@ def check_new_filings():
 def main():
     """Główna funkcja"""
     print("=" * 60)
-    print("🚀 SEC 8
+    print("SEC 8-K Monitor - GitHub Actions")
     print("=" * 60)
-    print(f"📊 Monitorowane spółki: {len(COMPANIES)}")
-    print(f"📋 Kategorie: {', '.join(IMPORTANT_ITEMS.keys())}")
+    print(f"Monitorowane spółki: {len(COMPANIES)}")
+    print(f"Kategorie: {', '.join(IMPORTANT_ITEMS.keys())}")
     print("=" * 60)
     
     if not DISCORD_WEBHOOK_URL:
-        print("⚠️ UWAGA: Ustaw DISCORD_WEBHOOK_URL w GitHub Secrets!")
+        print("UWAGA: Ustaw DISCORD_WEBHOOK_URL w GitHub Secrets!")
         return
     
     check_new_filings()
-    print("\n✅ Zakończono sprawdzanie")
+    print("\n Zakończono sprawdzanie")
 
 if __name__ == "__main__":
     main()
