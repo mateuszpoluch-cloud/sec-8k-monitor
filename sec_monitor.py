@@ -430,7 +430,7 @@ def extract_key_numbers(text: str) -> str:
                 words = excerpt.split()
                 start_idx = 0
                 for i, word in enumerate(words):
-                    if len(word) > 4 and not re.match(r'^[\d\.\-]+
+                    if len(word) > 4 and any(c.isalpha() for c in word):
 
 def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
     """Analizuje treść raportu 8-K"""
