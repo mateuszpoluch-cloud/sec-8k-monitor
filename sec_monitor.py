@@ -256,7 +256,7 @@ def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
     bearish_score = sum(1 for kw in keywords if kw in bearish_kw)
     
     if bullish_score > bearish_score:
-        sentiment = "BULLISH"
+        sentiment = "📈 BULLISH"
         color = 5763719
         interpretation = "Pozytywne wiadomosci moga wspierac wzrost ceny."
         if 'partnership' in keywords or 'collaboration' in keywords:
@@ -264,11 +264,11 @@ def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
         elif 'revenue' in keywords or 'earnings' in keywords:
             interpretation += " Dobre wyniki finansowe moga przyciagnac inwestorow."
     elif bearish_score > bullish_score:
-        sentiment = "BEARISH"
+        sentiment = "📉 BEARISH"
         color = 15158332
         interpretation = "Negatywne wiadomosci moga wywrzec presje na cene akcji."
     else:
-        sentiment = "NEUTRALNY"
+        sentiment = "➡️ NEUTRALNY"
         color = 15844367
         interpretation = "Wiadomosci maja mieszany charakter."
     
@@ -299,11 +299,11 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     tradingview_link = f"https://www.tradingview.com/chart/?symbol={ticker}"
     
     if analysis['importance'] >= 5:
-        priority = "BARDZO WAZNE"
+        priority = "🔴 BARDZO WAZNE"
     elif analysis['importance'] >= 3:
-        priority = "WAZNE"
+        priority = "🟡 WAZNE"
     else:
-        priority = "INFORMACYJNE"
+        priority = "🟢 INFORMACYJNE"
     
     related_companies = RELATIONSHIPS.get(ticker, {})
     if related_companies:
@@ -335,16 +335,16 @@ def send_discord_alert(filing: Dict, analysis: Dict):
         "description": f"**{company} ({ticker})**\n*{company_desc}*\n\n{sentiment_data['sentiment']}\n*{sentiment_data['interpretation']}*",
         "color": sentiment_data['color'],
         "fields": [
-            {"name": "Data zgloszenia", "value": date, "inline": True},
-            {"name": "Ocena waznosci", "value": f"{analysis['importance']}/10", "inline": True},
-            {"name": "Wykryte kategorie", "value": items_text, "inline": False},
-            {"name": "Kluczowe slowa", "value": keywords_text, "inline": False},
-            {"name": "Potencjalny wplyw na", "value": related_text, "inline": False},
-            {"name": "Wykres", "value": f"[Otworz na TradingView]({tradingview_link})", "inline": True},
-            {"name": "Dokument SEC", "value": f"[Otworz raport]({analysis['url']})", "inline": True},
-            {"name": "FRAGMENT DOKUMENTU (tlumaczenie)", "value": f"```{document_excerpt[:900]}```", "inline": False},
-            {"name": "KLUCZOWE DANE", "value": key_numbers, "inline": False},
-            {"name": "Publikacja na SEC", "value": publication_time, "inline": False}
+            {"name": "📅 Data zgloszenia", "value": date, "inline": True},
+            {"name": "📊 Ocena waznosci", "value": f"{analysis['importance']}/10", "inline": True},
+            {"name": "📋 Wykryte kategorie", "value": items_text, "inline": False},
+            {"name": "🔍 Kluczowe slowa", "value": keywords_text, "inline": False},
+            {"name": "🔗 Potencjalny wplyw na", "value": related_text, "inline": False},
+            {"name": "📈 Wykres", "value": f"[Otworz na TradingView]({tradingview_link})", "inline": True},
+            {"name": "📄 Dokument SEC", "value": f"[Otworz raport]({analysis['url']})", "inline": True},
+            {"name": "📄 FRAGMENT DOKUMENTU (tlumaczenie)", "value": f"```{document_excerpt[:900]}```", "inline": False},
+            {"name": "📊 KLUCZOWE DANE", "value": key_numbers, "inline": False},
+            {"name": "🕐 Publikacja na SEC", "value": publication_time, "inline": False}
         ],
         "footer": {"text": f"SEC EDGAR Monitor {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
     }
