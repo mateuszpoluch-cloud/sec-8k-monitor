@@ -408,8 +408,21 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     else:
         priority = "🟢 INFORMACYJNE"
     
-    related = RELATIONSHIPS.get(ticker, [])
-    related_text = ", ".join(related[:5]) if related else "Brak bezpośrednich powiązań"
+    # Powiązane spółki z wyjaśnieniami i linkami
+    related_companies = RELATIONSHIPS.get(ticker, {})
+    if related_companies:
+        related_list = []
+        count = 0
+        for related_ticker, reason in related_companies.items():
+            if count >= 4:  # Maksymalnie 4
+                break
+            tv_link = f"https://www.tradingview.com/chart/?symbol={related_ticker}"
+            related_list.append(f"[{related_ticker}]({tv_link}) - {reason}")
+            count += 1
+        related_text = "\n".join(related_list)
+    else:
+        related_text = "Brak bezpośrednich powiązań w monitorowanych spółkach"
+    
     items_text = "\n".join([f"• {item}" for item in analysis['items']]) if analysis['items'] else "Brak wykrytych Items"
     keywords_text = ", ".join(analysis['keywords']) if analysis['keywords'] else "Brak"
     
