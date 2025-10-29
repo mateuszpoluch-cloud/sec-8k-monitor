@@ -916,18 +916,18 @@ def check_new_filings():
 def main():
     """Główna funkcja"""
     print("=" * 60)
-    print("🚀 SEC 8-K Monitor - GitHub Actions")
+    print("SEC 8-K Monitor - GitHub Actions")
     print("=" * 60)
-    print(f"📊 Monitorowane spółki: {len(COMPANIES)}")
-    print(f"📋 Kategorie: {', '.join(IMPORTANT_ITEMS.keys())}")
+    print(f"Monitorowane spółki: {len(COMPANIES)}")
+    print(f"Kategorie: {', '.join(IMPORTANT_ITEMS.keys())}")
     print("=" * 60)
     
     if not DISCORD_WEBHOOK_URL:
-        print("⚠️ UWAGA: Ustaw DISCORD_WEBHOOK_URL w GitHub Secrets!")
+        print("UWAGA: Ustaw DISCORD_WEBHOOK_URL w GitHub Secrets!")
         return
     
     check_new_filings()
-    print("\n✅ Zakończono sprawdzanie")
+    print("\nZakończono sprawdzanie")
 
 if __name__ == "__main__":
     main()
