@@ -6,7 +6,7 @@ from typing import List, Dict
 
 # Konfiguracja
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
-USER_AGENT = "SEC-Monitor/1.0 (your-email@example.com)"  # ZMIEŃ NA SWÓJ EMAIL
+USER_AGENT = "SEC-Monitor/1.0 (mateusz.poluch@gmail.com)"  # ZMIEŃ NA SWÓJ EMAIL
 
 # Lista spółek z ekosystemu AI/półprzewodników
 COMPANIES = {
