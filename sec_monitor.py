@@ -6,35 +6,54 @@ from typing import List, Dict
 
 # Konfiguracja
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
-USER_AGENT = "SEC-Monitor/1.0 (your-email@example.com)"
+USER_AGENT = "SEC-Monitor/1.0 (your-email@example.com)"  # ZMIEN NA SWOJ EMAIL
 
-# Lista spółek
+# Lista spolek z ekosystemu AI/polprzewodnikow
 COMPANIES = {
-    'NVDA': {'name': 'NVIDIA', 'cik': '0001045810', 'desc': 'Producent chipów GPU dla AI i datacenter'},
+    'NVDA': {'name': 'NVIDIA', 'cik': '0001045810', 'desc': 'Producent chipow GPU dla AI i datacenter'},
     'AMD': {'name': 'AMD', 'cik': '0000002488', 'desc': 'Procesory, GPU i chipy dla datacenter'},
-    'INTC': {'name': 'Intel', 'cik': '0000050863', 'desc': 'Procesory CPU i komponenty półprzewodnikowe'},
-    'ASML': {'name': 'ASML', 'cik': '0000937966', 'desc': 'Maszyny litograficzne do produkcji chipów'},
-    'TSM': {'name': 'TSMC', 'cik': '0001046179', 'desc': 'Największa fabryka chipów (foundry)'},
-    'MU': {'name': 'Micron', 'cik': '0000723125', 'desc': 'Pamięci RAM i storage dla AI'},
-    'STX': {'name': 'Seagate', 'cik': '0001137789', 'desc': 'Dyski twarde i rozwiązania storage'},
+    'INTC': {'name': 'Intel', 'cik': '0000050863', 'desc': 'Procesory CPU i komponenty polprzewodnikowe'},
+    'AVGO': {'name': 'Broadcom', 'cik': '0001730168', 'desc': 'Chipy komunikacyjne i polprzewodniki'},
+    'QCOM': {'name': 'Qualcomm', 'cik': '0000804328', 'desc': 'Chipy mobilne i technologie bezprzewodowe'},
+    'MRVL': {'name': 'Marvell', 'cik': '0001058057', 'desc': 'Polprzewodniki dla datacenter i 5G'},
+    'ASML': {'name': 'ASML', 'cik': '0000937966', 'desc': 'Maszyny litograficzne do produkcji chipow'},
+    'AMAT': {'name': 'Applied Materials', 'cik': '0000006951', 'desc': 'Sprzet do produkcji polprzewodnikow'},
+    'LRCX': {'name': 'Lam Research', 'cik': '0000707549', 'desc': 'Technologie trawienia i depozycji chipow'},
+    'KLAC': {'name': 'KLA Corporation', 'cik': '0000319201', 'desc': 'Kontrola jakosci w produkcji chipow'},
+    'TSM': {'name': 'TSMC', 'cik': '0001046179', 'desc': 'Najwieksza fabryka chipow (foundry)'},
+    'MU': {'name': 'Micron', 'cik': '0000723125', 'desc': 'Pamieci RAM i storage dla AI'},
+    'WDC': {'name': 'Western Digital', 'cik': '0000106040', 'desc': 'Dyski twarde i pamieci flash'},
+    'STX': {'name': 'Seagate', 'cik': '0001137789', 'desc': 'Dyski twarde i rozwiazania storage'},
+    'ENTG': {'name': 'Entegris', 'cik': '0001101302', 'desc': 'Materialy chemiczne do produkcji chipow'},
+    'MPWR': {'name': 'Monolithic Power', 'cik': '0001280452', 'desc': 'Uklady zarzadzania energia'},
+    'ORCL': {'name': 'Oracle', 'cik': '0001341439', 'desc': 'Bazy danych i cloud computing'},
+    'SNOW': {'name': 'Snowflake', 'cik': '0001640147', 'desc': 'Platforma analityki danych w chmurze'},
+    'MDB': {'name': 'MongoDB', 'cik': '0001441404', 'desc': 'Bazy danych NoSQL'},
+    'PLTR': {'name': 'Palantir', 'cik': '0001321655', 'desc': 'Analityka AI i big data'},
+    'ARM': {'name': 'Arm Holdings', 'cik': '0001996864', 'desc': 'Architektura procesorow ARM'},
 }
 
-# Powiązania
+# Powiazania miedzy spolkami z wyjasnieniami
 RELATIONSHIPS = {
-    'NVDA': {'TSM': 'TSMC produkuje ich chipy', 'MU': 'Micron dostarcza pamięci'},
-    'AMD': {'TSM': 'TSMC produkuje ich procesory i GPU', 'MU': 'Micron dostarcza pamięci'},
+    'ASML': {'TSM': 'produkuje maszyny litograficzne dla TSMC', 'INTC': 'dostarcza sprzet produkcyjny'},
     'TSM': {'NVDA': 'produkuje chipy GPU dla NVIDIA', 'AMD': 'produkuje procesory i GPU dla AMD'},
-    'STX': {'NVDA': 'storage dla AI/datacenter'},
+    'NVDA': {'TSM': 'TSMC produkuje ich chipy', 'MU': 'Micron dostarcza pamieci do kart graficznych'},
+    'AMD': {'TSM': 'TSMC produkuje ich procesory i GPU', 'MU': 'Micron dostarcza pamieci'},
+    'INTC': {'AMAT': 'kupuje sprzet do produkcji chipow', 'ASML': 'kupuje maszyny EUV'},
+    'MU': {'NVDA': 'dostarcza pamiec dla kart graficznych', 'AMD': 'dostarcza pamiec dla GPU/CPU'},
+    'STX': {'NVDA': 'storage dla AI/datacenter', 'ORCL': 'storage dla baz danych'},
 }
 
 IMPORTANT_ITEMS = {
-    '1.01': 'Przejęcia/Fuzje/Akwizycje',
-    '1.02': 'Zakup/Sprzedaż aktywów',
+    '1.01': 'Przejecia/Fuzje/Akwizycje',
+    '1.02': 'Zakup/Sprzedaz aktywow',
     '8.01': 'Inne istotne wydarzenia',
     '2.02': 'Wyniki finansowe'
 }
 
-KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'revenue', 'earnings']
+KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'collaboration', 
+            'joint venture', 'strategic', 'ai', 'artificial intelligence', 'chip', 'semiconductor', 
+            'revenue', 'earnings', 'guidance']
 
 def load_processed_filings():
     try:
@@ -75,37 +94,75 @@ def get_recent_filings(cik: str, ticker: str) -> List[Dict]:
         return filings[:5]
         
     except Exception as e:
-        print(f"Error getting filings for {ticker}: {e}")
+        print(f"Error for {ticker}: {e}")
         return []
 
-def translate_text(text: str) -> str:
+def translate_to_polish_full(text: str) -> str:
     import re
     translations = {
-        'revenue': 'przychody', 'revenues': 'przychody',
-        'earnings': 'zyski', 'billion': 'miliardów', 'million': 'milionów',
-        'quarter': 'kwartał', 'FISCAL': 'FISKALNY', 'REPORTS': 'RAPORTUJE',
+        'FINANCIAL RESULTS': 'WYNIKI FINANSOWE', 'financial results': 'wyniki finansowe',
+        'year-over-year': 'rok do roku', 'compared to': 'w porownaniu do',
+        'cash flow from operations': 'przeplywy pieniezne z operacji',
+        'free cash flow': 'wolne przeplywy pieniezne',
+        'returned to shareholders': 'zwrocono akcjonariuszom',
+        'diluted EPS': 'rozwodniony zysk na akcje', 'per share': 'na akcje',
+        'gross margin': 'marza brutto', 'net income': 'zysk netto',
+        'TECHNOLOGY': 'TECHNOLOGIA', 'REPORTS': 'RAPORTUJE',
+        'FISCAL': 'FISKALNY', 'Quarter': 'Kwartal', 'quarter': 'kwartal',
+        'Highlights': 'Najwazniejsze', 'Revenue': 'Przychody', 'revenue': 'przychody',
+        'billion': 'miliardow', 'million': 'milionow', 'earnings': 'zyski',
+        'approximately': 'okolo', 'dividends': 'dywidendy', 'shares': 'akcji',
+        'shareholders': 'akcjonariuszy', 'partnership': 'partnerstwo',
     }
     
     result = text
     for eng, pl in sorted(translations.items(), key=lambda x: len(x[0]), reverse=True):
-        pattern = r'\b' + re.escape(eng) + r'\b'
-        result = re.sub(pattern, pl, result, flags=re.IGNORECASE)
-    
+        if ' ' in eng:
+            result = result.replace(eng, pl)
+        else:
+            pattern = r'\b' + re.escape(eng) + r'\b'
+            result = re.sub(pattern, pl, result)
     return result
 
 def extract_key_numbers(text: str) -> str:
     import re
     summary = []
     
-    rev_match = re.search(r'(?:revenue|przychody).*?\$?\s*(\d+[\.,]\d+)\s*(?:billion|miliardów)', text, re.I)
+    rev_match = re.search(r'(?:revenue|revenues|przychody).*?\$?\s*(\d+[\.,]\d+)\s*(?:billion|miliardow|mld)', text, re.I)
     if rev_match:
-        summary.append(f"Przychody: ${rev_match.group(1)} mld")
+        amount = rev_match.group(1).replace(',', '.')
+        summary.append(f"Przychody: ${amount} mld")
     
-    margin_match = re.search(r'(?:margin|marża).*?(\d+[\.,]\d+)%', text, re.I)
+    earn_match = re.search(r'(?:net income|zysk netto|earnings|zyski).*?\$?\s*(\d+[\.,]?\d*)\s*(?:million|billion|milionow|miliardow|mln|mld)', text, re.I)
+    if earn_match:
+        amount = earn_match.group(1).replace(',', '.')
+        unit = 'mld' if 'billion' in earn_match.group(0).lower() or 'miliardow' in earn_match.group(0).lower() else 'mln'
+        summary.append(f"Zysk netto: ${amount} {unit}")
+    
+    margin_match = re.search(r'(?:gross margin|marza brutto).*?(\d+[\.,]\d+)%', text, re.I)
     if margin_match:
-        summary.append(f"Marża: {margin_match.group(1)}%")
+        margin = margin_match.group(1).replace(',', '.')
+        summary.append(f"Marza brutto: {margin}%")
     
-    return "\n".join(summary) if summary else "Brak danych liczbowych"
+    eps_match = re.search(r'(?:EPS|zysk na akcje|per share).*?\$?\s*(\d+[\.,]\d+)', text, re.I)
+    if eps_match:
+        eps = eps_match.group(1).replace(',', '.')
+        summary.append(f"EPS: ${eps}")
+    
+    growth_match = re.search(r'(?:wzrost|growth|increased).*?(\d+)%', text, re.I)
+    if growth_match:
+        growth = growth_match.group(1)
+        summary.append(f"Wzrost r/r: +{growth}%")
+    
+    cf_match = re.search(r'(?:free cash flow|wolne przeplywy).*?\$?\s*(\d+)\s*(?:million|milionow|mln)', text, re.I)
+    if cf_match:
+        cf = cf_match.group(1)
+        summary.append(f"Free Cash Flow: ${cf} mln")
+    
+    if summary:
+        return "\n".join(summary)
+    else:
+        return "Brak kluczowych danych liczbowych"
 
 def extract_document_excerpt(content: str, detected_items: list) -> Dict:
     import re
@@ -121,8 +178,12 @@ def extract_document_excerpt(content: str, detected_items: list) -> Dict:
                 excerpt = re.sub(r'<[^>]+>', '', excerpt)
                 excerpt = html.unescape(excerpt)
                 excerpt = re.sub(r'EX-\d+\.\d+.*?\.htm\s*', '', excerpt, flags=re.I)
-                excerpt = re.sub(r'Investor Relations Contact:.*?@\S+', '', excerpt, flags=re.I)
+                excerpt = re.sub(r'Investor Relations Contact:.*?(?=\w{5,}\s+\w{5,})', '', excerpt, flags=re.I | re.DOTALL)
+                excerpt = re.sub(r'Contact:.*?@\S+', '', excerpt, flags=re.I)
+                excerpt = re.sub(r'\(\d{3}\)\s*\d{3}-\d{4}', '', excerpt)
                 excerpt = re.sub(r'\b[\w\.-]+@[\w\.-]+\.\w+\b', '', excerpt)
+                excerpt = excerpt.replace('&nbsp;', ' ')
+                excerpt = re.sub(r'[•◦▪□■►▶]', '', excerpt)
                 excerpt = re.sub(r'\s+', ' ', excerpt).strip()
                 
                 words = excerpt.split()
@@ -133,19 +194,19 @@ def extract_document_excerpt(content: str, detected_items: list) -> Dict:
                         break
                 excerpt = ' '.join(words[start_idx:])
                 
-                if len(excerpt) > 800:
-                    end = excerpt[:800].rfind('.')
-                    if end > 300:
+                if len(excerpt) > 1000:
+                    end = excerpt[:1000].rfind('.')
+                    if end > 400:
                         excerpt = excerpt[:end+1]
                     else:
-                        excerpt = excerpt[:800]
+                        excerpt = excerpt[:1000]
                 
-                excerpt_pl = translate_text(excerpt)
+                excerpt_pl = translate_to_polish_full(excerpt)
                 key_numbers = extract_key_numbers(excerpt_pl)
                 
                 return {'excerpt': excerpt_pl, 'key_numbers': key_numbers}
     
-    return {'excerpt': 'Brak fragmentu', 'key_numbers': 'N/A'}
+    return {'excerpt': 'Nie udalo sie wyodrebnic fragmentu dokumentu', 'key_numbers': 'N/A'}
 
 def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
     acc_no_dashes = accession_number.replace('-', '')
@@ -180,24 +241,38 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
         print(f"Error analyzing {accession_number}: {e}")
         return {
             'items': [], 'keywords': [], 'importance': 0,
-            'document_excerpt': {'excerpt': 'Błąd', 'key_numbers': 'N/A'},
+            'document_excerpt': {'excerpt': 'Blad pobierania', 'key_numbers': 'N/A'},
             'url': filing_url
         }
 
-def analyze_sentiment(analysis: Dict) -> Dict:
+def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
     keywords = analysis.get('keywords', [])
-    bullish_kw = ['partnership', 'revenue', 'earnings', 'growth']
-    bearish_kw = ['loss', 'decline', 'lawsuit']
+    bullish_kw = ['partnership', 'collaboration', 'strategic', 'agreement', 'contract', 
+                  'revenue', 'earnings', 'growth', 'expansion', 'joint venture']
+    bearish_kw = ['loss', 'decline', 'lawsuit', 'investigation', 'bankruptcy', 
+                  'restructuring', 'termination', 'failure']
     
     bullish_score = sum(1 for kw in keywords if kw in bullish_kw)
     bearish_score = sum(1 for kw in keywords if kw in bearish_kw)
     
     if bullish_score > bearish_score:
-        return {'sentiment': 'BULLISH', 'color': 5763719, 'interpretation': 'Pozytywne wiadomości mogą wspierać wzrost ceny.'}
+        sentiment = "BULLISH"
+        color = 5763719
+        interpretation = "Pozytywne wiadomosci moga wspierac wzrost ceny."
+        if 'partnership' in keywords or 'collaboration' in keywords:
+            interpretation += " Nowe partnerstwo moze otworzyc dodatkowe zrodla przychodow."
+        elif 'revenue' in keywords or 'earnings' in keywords:
+            interpretation += " Dobre wyniki finansowe moga przyciagnac inwestorow."
     elif bearish_score > bullish_score:
-        return {'sentiment': 'BEARISH', 'color': 15158332, 'interpretation': 'Negatywne wiadomości mogą wywrzeć presję na cenę.'}
+        sentiment = "BEARISH"
+        color = 15158332
+        interpretation = "Negatywne wiadomosci moga wywrzec presje na cene akcji."
     else:
-        return {'sentiment': 'NEUTRALNY', 'color': 15844367, 'interpretation': 'Wiadomości mają mieszany charakter.'}
+        sentiment = "NEUTRALNY"
+        color = 15844367
+        interpretation = "Wiadomosci maja mieszany charakter."
+    
+    return {'sentiment': sentiment, 'color': color, 'interpretation': interpretation}
 
 def send_discord_alert(filing: Dict, analysis: Dict):
     if not DISCORD_WEBHOOK_URL:
@@ -218,56 +293,60 @@ def send_discord_alert(filing: Dict, analysis: Dict):
         except:
             publication_time = acceptance_datetime
     else:
-        publication_time = f"{date}"
+        publication_time = f"{date} (brak dokladnej godziny)"
     
-    sentiment_data = analyze_sentiment(analysis)
+    sentiment_data = analyze_sentiment(analysis, ticker)
     tradingview_link = f"https://www.tradingview.com/chart/?symbol={ticker}"
     
     if analysis['importance'] >= 5:
-        priority = "BARDZO WAŻNE"
+        priority = "BARDZO WAZNE"
     elif analysis['importance'] >= 3:
-        priority = "WAŻNE"
+        priority = "WAZNE"
     else:
         priority = "INFORMACYJNE"
     
     related_companies = RELATIONSHIPS.get(ticker, {})
     if related_companies:
         related_list = []
-        for rt, reason in list(related_companies.items())[:3]:
-            tv_link = f"https://www.tradingview.com/chart/?symbol={rt}"
-            related_list.append(f"[{rt}]({tv_link}) - {reason}")
+        count = 0
+        for related_ticker, reason in related_companies.items():
+            if count >= 4:
+                break
+            tv_link = f"https://www.tradingview.com/chart/?symbol={related_ticker}"
+            related_list.append(f"[{related_ticker}]({tv_link}) - {reason}")
+            count += 1
         related_text = "\n".join(related_list)
     else:
-        related_text = "Brak powiązań"
+        related_text = "Brak bezposrednich powiazan"
     
-    items_text = "\n".join([f"• {item}" for item in analysis['items']]) if analysis['items'] else "Brak"
+    items_text = "\n".join([f"{item}" for item in analysis['items']]) if analysis['items'] else "Brak wykrytych Items"
     keywords_text = ", ".join(analysis['keywords']) if analysis['keywords'] else "Brak"
     
     doc_data = analysis.get('document_excerpt', {})
     if isinstance(doc_data, dict):
-        document_excerpt = doc_data.get('excerpt', 'Brak')
-        key_numbers = doc_data.get('key_numbers', 'N/A')
+        document_excerpt = doc_data.get('excerpt', 'Brak fragmentu')
+        key_numbers = doc_data.get('key_numbers', 'Brak danych')
     else:
         document_excerpt = str(doc_data)
-        key_numbers = 'N/A'
+        key_numbers = 'Brak danych'
     
     embed = {
         "title": f"{priority} - Nowy raport 8-K",
         "description": f"**{company} ({ticker})**\n*{company_desc}*\n\n{sentiment_data['sentiment']}\n*{sentiment_data['interpretation']}*",
         "color": sentiment_data['color'],
         "fields": [
-            {"name": "Data", "value": date, "inline": True},
-            {"name": "Ocena", "value": f"{analysis['importance']}/10", "inline": True},
-            {"name": "Kategorie", "value": items_text, "inline": False},
-            {"name": "Słowa kluczowe", "value": keywords_text, "inline": False},
-            {"name": "Wpływ na", "value": related_text, "inline": False},
-            {"name": "Wykres", "value": f"[TradingView]({tradingview_link})", "inline": True},
-            {"name": "Dokument SEC", "value": f"[Raport]({analysis['url']})", "inline": True},
-            {"name": "FRAGMENT", "value": f"```{document_excerpt[:800]}```", "inline": False},
+            {"name": "Data zgloszenia", "value": date, "inline": True},
+            {"name": "Ocena waznosci", "value": f"{analysis['importance']}/10", "inline": True},
+            {"name": "Wykryte kategorie", "value": items_text, "inline": False},
+            {"name": "Kluczowe slowa", "value": keywords_text, "inline": False},
+            {"name": "Potencjalny wplyw na", "value": related_text, "inline": False},
+            {"name": "Wykres", "value": f"[Otworz na TradingView]({tradingview_link})", "inline": True},
+            {"name": "Dokument SEC", "value": f"[Otworz raport]({analysis['url']})", "inline": True},
+            {"name": "FRAGMENT DOKUMENTU (tlumaczenie)", "value": f"```{document_excerpt[:900]}```", "inline": False},
             {"name": "KLUCZOWE DANE", "value": key_numbers, "inline": False},
-            {"name": "Publikacja SEC", "value": publication_time, "inline": False}
+            {"name": "Publikacja na SEC", "value": publication_time, "inline": False}
         ],
-        "footer": {"text": f"SEC Monitor {datetime.now().strftime('%Y-%m-%d %H:%M')}"}
+        "footer": {"text": f"SEC EDGAR Monitor {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
     }
     
     payload = {"embeds": [embed]}
@@ -280,7 +359,7 @@ def send_discord_alert(filing: Dict, analysis: Dict):
         print(f"Error sending alert: {e}")
 
 def check_new_filings():
-    print(f"\nChecking for new 8-K filings... [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+    print(f"\nChecking new 8-K filings... [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
     
     processed_filings = load_processed_filings()
     new_filings_count = 0
@@ -317,12 +396,9 @@ def check_new_filings():
         print(f"Sent {new_filings_count} alerts")
 
 def main():
-    print("=" * 60)
     print("SEC 8-K Monitor - GitHub Actions")
-    print("=" * 60)
     print(f"Companies: {len(COMPANIES)}")
     print(f"Categories: {', '.join(IMPORTANT_ITEMS.keys())}")
-    print("=" * 60)
     
     if not DISCORD_WEBHOOK_URL:
         print("WARNING: Set DISCORD_WEBHOOK_URL in GitHub Secrets!")
