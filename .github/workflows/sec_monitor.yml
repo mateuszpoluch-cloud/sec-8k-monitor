@@ -1,0 +1,44 @@
+name: SEC 8-K Monitor
+
+on:
+  schedule:
+    # Uruchamia się co 15 minut
+    - cron: '*/15 * * * *'
+  workflow_dispatch:  # Możliwość ręcznego uruchomienia
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        
+    - name: Download previous state
+      uses: actions/download-artifact@v3
+      with:
+        name: processed-filings
+        path: .
+      continue-on-error: true
+      
+    - name: Run SEC Monitor
+      env:
+        DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      run: |
+        python sec_monitor.py
+        
+    - name: Upload state
+      uses: actions/upload-artifact@v3
+      with:
+        name: processed-filings
+        path: processed_filings.json
+        retention-days: 7
