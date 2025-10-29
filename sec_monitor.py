@@ -11,37 +11,37 @@ USER_AGENT = "SEC-Monitor/1.0 (your-email@example.com)"  # ZMIEŃ NA SWÓJ EMAIL
 # Lista spółek z ekosystemu AI/półprzewodników
 COMPANIES = {
     # Producenci chipów AI
-    'NVDA': {'name': 'NVIDIA', 'cik': '0001045810'},
-    'AMD': {'name': 'AMD', 'cik': '0000002488'},
-    'INTC': {'name': 'Intel', 'cik': '0000050863'},
-    'AVGO': {'name': 'Broadcom', 'cik': '0001730168'},
-    'QCOM': {'name': 'Qualcomm', 'cik': '0000804328'},
-    'MRVL': {'name': 'Marvell', 'cik': '0001058057'},
+    'NVDA': {'name': 'NVIDIA', 'cik': '0001045810', 'desc': 'Producent chipów GPU dla AI i datacenter'},
+    'AMD': {'name': 'AMD', 'cik': '0000002488', 'desc': 'Procesory, GPU i chipy dla datacenter'},
+    'INTC': {'name': 'Intel', 'cik': '0000050863', 'desc': 'Procesory CPU i komponenty półprzewodnikowe'},
+    'AVGO': {'name': 'Broadcom', 'cik': '0001730168', 'desc': 'Chipy komunikacyjne i półprzewodniki'},
+    'QCOM': {'name': 'Qualcomm', 'cik': '0000804328', 'desc': 'Chipy mobilne i technologie bezprzewodowe'},
+    'MRVL': {'name': 'Marvell', 'cik': '0001058057', 'desc': 'Półprzewodniki dla datacenter i 5G'},
     
     # Półprzewodniki & sprzęt
-    'ASML': {'name': 'ASML', 'cik': '0000937966'},
-    'AMAT': {'name': 'Applied Materials', 'cik': '0000006951'},
-    'LRCX': {'name': 'Lam Research', 'cik': '0000707549'},
-    'KLAC': {'name': 'KLA Corporation', 'cik': '0000319201'},
-    'TSM': {'name': 'TSMC', 'cik': '0001046179'},
+    'ASML': {'name': 'ASML', 'cik': '0000937966', 'desc': 'Maszyny litograficzne do produkcji chipów'},
+    'AMAT': {'name': 'Applied Materials', 'cik': '0000006951', 'desc': 'Sprzęt do produkcji półprzewodników'},
+    'LRCX': {'name': 'Lam Research', 'cik': '0000707549', 'desc': 'Technologie trawienia i depozycji chipów'},
+    'KLAC': {'name': 'KLA Corporation', 'cik': '0000319201', 'desc': 'Kontrola jakości w produkcji chipów'},
+    'TSM': {'name': 'TSMC', 'cik': '0001046179', 'desc': 'Największa fabryka chipów (foundry)'},
     
     # Pamięci & storage
-    'MU': {'name': 'Micron', 'cik': '0000723125'},
-    'WDC': {'name': 'Western Digital', 'cik': '0000106040'},
-    'STX': {'name': 'Seagate', 'cik': '0001137789'},
+    'MU': {'name': 'Micron', 'cik': '0000723125', 'desc': 'Pamięci RAM i storage dla AI'},
+    'WDC': {'name': 'Western Digital', 'cik': '0000106040', 'desc': 'Dyski twarde i pamięci flash'},
+    'STX': {'name': 'Seagate', 'cik': '0001137789', 'desc': 'Dyski twarde i rozwiązania storage'},
     
     # Materiały & komponenty
-    'ENTG': {'name': 'Entegris', 'cik': '0001101302'},
-    'MPWR': {'name': 'Monolithic Power', 'cik': '0001280452'},
+    'ENTG': {'name': 'Entegris', 'cik': '0001101302', 'desc': 'Materiały chemiczne do produkcji chipów'},
+    'MPWR': {'name': 'Monolithic Power', 'cik': '0001280452', 'desc': 'Układy zarządzania energią'},
     
     # Infrastruktura AI
-    'ORCL': {'name': 'Oracle', 'cik': '0001341439'},
-    'SNOW': {'name': 'Snowflake', 'cik': '0001640147'},
-    'MDB': {'name': 'MongoDB', 'cik': '0001441404'},
-    'PLTR': {'name': 'Palantir', 'cik': '0001321655'},
+    'ORCL': {'name': 'Oracle', 'cik': '0001341439', 'desc': 'Bazy danych i cloud computing'},
+    'SNOW': {'name': 'Snowflake', 'cik': '0001640147', 'desc': 'Platforma analityki danych w chmurze'},
+    'MDB': {'name': 'MongoDB', 'cik': '0001441404', 'desc': 'Bazy danych NoSQL'},
+    'PLTR': {'name': 'Palantir', 'cik': '0001321655', 'desc': 'Analityka AI i big data'},
     
     # ARM & Design
-    'ARM': {'name': 'Arm Holdings', 'cik': '0001996864'},
+    'ARM': {'name': 'Arm Holdings', 'cik': '0001996864', 'desc': 'Architektura procesorów ARM'},
 }
 
 # Powiązania między spółkami z wyjaśnieniami
@@ -195,6 +195,7 @@ def get_recent_filings(cik: str, ticker: str) -> List[Dict]:
                 filing = {
                     'accessionNumber': recent['accessionNumber'][i],
                     'filingDate': recent['filingDate'][i],
+                    'acceptanceDateTime': recent.get('acceptanceDateTime', [None] * len(recent['form']))[i],
                     'primaryDocument': recent['primaryDocument'][i],
                     'ticker': ticker,
                     'company': COMPANIES[ticker]['name']
@@ -207,93 +208,94 @@ def get_recent_filings(cik: str, ticker: str) -> List[Dict]:
         print(f"❌ Błąd pobierania danych dla {ticker}: {e}")
         return []
 
-def extract_key_facts(content: str, ticker: str) -> str:
-    """Wyciąga kluczowe fakty z treści raportu 8-K"""
+def translate_to_polish(text: str) -> str:
+    """Podstawowe tłumaczenie kluczowych terminów finansowych na polski"""
+    translations = {
+        # Podstawowe
+        'agreement': 'umowa',
+        'partnership': 'partnerstwo',
+        'acquisition': 'przejęcie',
+        'merger': 'fuzja',
+        'revenue': 'przychody',
+        'earnings': 'zyski',
+        'income': 'dochód',
+        'loss': 'strata',
+        'growth': 'wzrost',
+        'decline': 'spadek',
+        'increased': 'wzrosły',
+        'decreased': 'spadły',
+        'announced': 'ogłosił',
+        'reported': 'raportował',
+        'entered into': 'zawarł',
+        'signed': 'podpisał',
+        
+        # Finansowe
+        'million': 'milionów',
+        'billion': 'miliardów',
+        'quarter': 'kwartał',
+        'fiscal year': 'rok finansowy',
+        'net income': 'zysk netto',
+        'operating income': 'zysk operacyjny',
+        'gross profit': 'zysk brutto',
+        'year-over-year': 'rok do roku',
+        'compared to': 'w porównaniu do',
+        
+        # Biznesowe
+        'pursuant to': 'zgodnie z',
+        'effective': 'obowiązujący',
+        'board of directors': 'rada dyrektorów',
+        'management': 'zarząd',
+        'stockholders': 'akcjonariusze',
+        'common stock': 'akcje zwykłe',
+        'securities': 'papiery wartościowe',
+    }
+    
+    translated = text
+    for eng, pl in translations.items():
+        # Zamiana całych słów (case insensitive)
+        import re
+        pattern = r'\b' + re.escape(eng) + r'\b'
+        translated = re.sub(pattern, pl, translated, flags=re.IGNORECASE)
+    
+    return translated
+
+def extract_document_excerpt(content: str, detected_items: list) -> str:
+    """Wyciąga fragment dokumentu z najważniejszej sekcji Item"""
     import re
     
-    content_lower = content.lower()
-    facts = []
+    # Znajdź najważniejszą sekcję Item
+    priority_items = ['1.01', '1.02', '8.01', '2.02']
     
-    # Szukaj konkretnych partnerstw/umów
-    partnership_patterns = [
-        r'partnership with ([a-z\s]+)',
-        r'agreement with ([a-z\s]+)',
-        r'collaboration with ([a-z\s]+)',
-        r'contract with ([a-z\s]+)'
-    ]
+    for item in priority_items:
+        if any(item in detected for detected in detected_items):
+            # Szukaj sekcji Item w dokumencie
+            pattern = rf'Item\s+{re.escape(item)}[^\n]*\n(.*?)(?=Item\s+\d|\Z)'
+            match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
+            
+            if match:
+                excerpt = match.group(1).strip()
+                
+                # Wyczyść z HTML tagów i zbędnych znaków
+                excerpt = re.sub(r'<[^>]+>', '', excerpt)
+                excerpt = re.sub(r'\s+', ' ', excerpt)
+                excerpt = excerpt.replace('&nbsp;', ' ')
+                excerpt = excerpt.replace('&#160;', ' ')
+                
+                # Weź pierwsze 800 znaków (około 3-4 zdania)
+                if len(excerpt) > 800:
+                    # Znajdź koniec zdania
+                    end = excerpt[:800].rfind('.')
+                    if end > 300:  # Jeśli znalazł sensowne zakończenie
+                        excerpt = excerpt[:end+1]
+                    else:
+                        excerpt = excerpt[:800] + '...'
+                
+                # Przetłumacz kluczowe terminy
+                excerpt_pl = translate_to_polish(excerpt)
+                
+                return excerpt_pl
     
-    for pattern in partnership_patterns:
-        matches = re.findall(pattern, content_lower)
-        if matches:
-            partner = matches[0].strip().title()
-            if len(partner) > 2 and len(partner) < 30:
-                facts.append(f"Partnerstwo z {partner}")
-                break
-    
-    # Szukaj wartości finansowych (miliony, miliardy)
-    money_patterns = [
-        r'\$\s?(\d+(?:,\d{3})*(?:\.\d+)?)\s?(million|billion)',
-        r'(\d+(?:,\d{3})*(?:\.\d+)?)\s?(million|billion)\s?(?:dollar|usd|\$)'
-    ]
-    
-    for pattern in money_patterns:
-        matches = re.findall(pattern, content_lower)
-        if matches:
-            amount = matches[0][0].replace(',', '')
-            unit = matches[0][1]
-            unit_pl = "mln" if unit == "million" else "mld"
-            facts.append(f"Wartość: ${amount} {unit_pl}")
-            break
-    
-    # Szukaj liczby produktów/jednostek
-    quantity_patterns = [
-        r'(\d+(?:,\d{3})*)\s?(?:million|thousand)?\s?(?:processors|chips|units|devices)',
-        r'(\d+(?:,\d{3})*)\s?(?:million|thousand)?\s?(?:procesorów|chipów|jednostek)'
-    ]
-    
-    for pattern in quantity_patterns:
-        matches = re.findall(pattern, content_lower)
-        if matches:
-            quantity = matches[0].replace(',', '')
-            facts.append(f"Ilość: {quantity} jednostek")
-            break
-    
-    # Szukaj wzrostu przychodów/zysków
-    growth_patterns = [
-        r'revenue (?:increased|grew|growth) (?:by )?(\d+)%',
-        r'(\d+)% (?:increase|growth) in revenue',
-        r'earnings (?:increased|grew) (?:by )?(\d+)%'
-    ]
-    
-    for pattern in growth_patterns:
-        matches = re.findall(pattern, content_lower)
-        if matches:
-            percentage = matches[0]
-            facts.append(f"Wzrost przychodów o {percentage}%")
-            break
-    
-    # Szukaj nowych produktów/technologii
-    if 'new product' in content_lower or 'product launch' in content_lower:
-        facts.append("Wprowadzenie nowego produktu")
-    
-    if 'ai chip' in content_lower or 'ai processor' in content_lower:
-        facts.append("Technologia: AI chips/procesory")
-    
-    # Szukaj przejęć
-    acquisition_patterns = [
-        r'acquire(?:d|s)?\s+([a-z\s]+)\s+for',
-        r'acquisition of ([a-z\s]+)'
-    ]
-    
-    for pattern in acquisition_patterns:
-        matches = re.findall(pattern, content_lower)
-        if matches:
-            target = matches[0].strip().title()
-            if len(target) > 2 and len(target) < 30:
-                facts.append(f"Przejęcie: {target}")
-                break
-    
-    return " | ".join(facts) if facts else "Brak szczegółowych danych liczbowych w raporcie"
+    return "Nie udało się wyodrębnić fragmentu dokumentu. Sprawdź pełny dokument SEC."
 
 def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
     """Analizuje treść raportu 8-K"""
@@ -316,14 +318,14 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
         found_keywords = [kw for kw in KEYWORDS if kw in content_lower]
         importance_score = len(detected_items) * 2 + len(found_keywords)
         
-        # Wyciągnij kluczowe fakty
-        key_facts = extract_key_facts(content, ticker)
+        # Wyciągnij fragment dokumentu
+        document_excerpt = extract_document_excerpt(content, detected_items)
         
         return {
             'items': detected_items,
             'keywords': found_keywords[:5],
             'importance': importance_score,
-            'key_facts': key_facts,
+            'document_excerpt': document_excerpt,
             'url': f"https://www.sec.gov/cgi-bin/viewer?action=view&cik={cik}&accession_number={accession_number}"
         }
         
@@ -333,7 +335,7 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
             'items': [], 
             'keywords': [], 
             'importance': 0, 
-            'key_facts': 'Błąd pobierania danych',
+            'document_excerpt': 'Błąd pobierania dokumentu',
             'url': filing_url
         }
 
@@ -393,6 +395,7 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     
     ticker = filing['ticker']
     company = filing['company']
+    company_desc = COMPANIES[ticker]['desc']
     date = filing['filingDate']
     
     # Analiza sentymentu
@@ -417,7 +420,7 @@ def send_discord_alert(filing: Dict, analysis: Dict):
             if count >= 4:  # Maksymalnie 4
                 break
             tv_link = f"https://www.tradingview.com/chart/?symbol={related_ticker}"
-            related_list.append(f"[{related_ticker}]({tv_link}) - {reason}")
+            related_list.append(f"• [{related_ticker}]({tv_link}) - {reason}")
             count += 1
         related_text = "\n".join(related_list)
     else:
@@ -428,7 +431,7 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     
     embed = {
         "title": f"{priority} - Nowy raport 8-K",
-        "description": f"**{company} ({ticker})**\n\n{sentiment_data['sentiment']}\n*{sentiment_data['interpretation']}*",
+        "description": f"**{company} ({ticker})**\n*{company_desc}*\n\n{sentiment_data['sentiment']}\n*{sentiment_data['interpretation']}*",
         "color": sentiment_data['color'],
         "fields": [
             {"name": "📅 Data zgłoszenia", "value": date, "inline": True},
@@ -438,7 +441,7 @@ def send_discord_alert(filing: Dict, analysis: Dict):
             {"name": "🔗 Potencjalny wpływ na", "value": related_text, "inline": False},
             {"name": "📈 Wykres", "value": f"[Otwórz na TradingView]({tradingview_link})", "inline": True},
             {"name": "📄 Dokument SEC", "value": f"[Otwórz raport]({analysis['url']})", "inline": True},
-            {"name": "📌 KLUCZOWE FAKTY", "value": f"```{analysis['key_facts']}```", "inline": False}
+            {"name": "📄 FRAGMENT DOKUMENTU (tłumaczenie)", "value": f"```{analysis['document_excerpt']}```", "inline": False}
         ],
         "footer": {"text": f"SEC EDGAR Monitor • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
     }
