@@ -6,7 +6,7 @@ from typing import List, Dict
 
 # Konfiguracja
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
-USER_AGENT = "SEC-Monitor/1.0 (mateusz.poluch@gmail.com)"  # ZMIEŃ NA SWÓJ EMAIL
+USER_AGENT = "SEC-Monitor/1.0 (your-email@example.com)"  # ZMIEŃ NA SWÓJ EMAIL
 
 # Lista spółek z ekosystemu AI/półprzewodników
 COMPANIES = {
@@ -44,18 +44,107 @@ COMPANIES = {
     'ARM': {'name': 'Arm Holdings', 'cik': '0001996864'},
 }
 
-# Powiązania między spółkami
+# Powiązania między spółkami z wyjaśnieniami
 RELATIONSHIPS = {
-    'ASML': ['TSM', 'INTC', 'AMAT', 'LRCX'],
-    'TSM': ['NVDA', 'AMD', 'AAPL', 'QCOM', 'MRVL'],
-    'NVDA': ['TSM', 'MU', 'MPWR', 'SNOW', 'ORCL'],
-    'AMD': ['TSM', 'MU', 'MPWR'],
-    'INTC': ['AMAT', 'LRCX', 'ASML'],
-    'MU': ['NVDA', 'AMD', 'INTC'],
-    'AMAT': ['TSM', 'INTC', 'ASML'],
-    'LRCX': ['TSM', 'INTC', 'ASML'],
-    'ENTG': ['TSM', 'INTC', 'AMAT'],
-    'MPWR': ['NVDA', 'AMD'],
+    'ASML': {
+        'TSM': 'produkuje maszyny litograficzne dla TSMC',
+        'INTC': 'dostarcza sprzęt produkcyjny',
+        'AMAT': 'konkurent w sprzęcie półprzewodnikowym',
+        'LRCX': 'konkurent w sprzęcie półprzewodnikowym'
+    },
+    'TSM': {
+        'NVDA': 'produkuje chipy GPU dla NVIDIA',
+        'AMD': 'produkuje procesory i GPU dla AMD',
+        'QCOM': 'produkuje chipy mobilne',
+        'MRVL': 'produkuje chipy dla Marvell'
+    },
+    'NVDA': {
+        'TSM': 'TSMC produkuje ich chipy',
+        'MU': 'Micron dostarcza pamięci do kart graficznych',
+        'MPWR': 'układy zasilające do GPU',
+        'SNOW': 'klient używający GPU do AI',
+        'ORCL': 'klient kupujący serwery z GPU'
+    },
+    'AMD': {
+        'TSM': 'TSMC produkuje ich procesory i GPU',
+        'MU': 'Micron dostarcza pamięci',
+        'MPWR': 'układy zasilające do procesorów'
+    },
+    'INTC': {
+        'AMAT': 'kupuje sprzęt do produkcji chipów',
+        'LRCX': 'kupuje sprzęt litograficzny',
+        'ASML': 'kupuje maszyny EUV'
+    },
+    'MU': {
+        'NVDA': 'dostarcza pamięć dla kart graficznych',
+        'AMD': 'dostarcza pamięć dla GPU/CPU',
+        'INTC': 'konkurent w pamięciach'
+    },
+    'AMAT': {
+        'TSM': 'dostarcza sprzęt produkcyjny',
+        'INTC': 'dostarcza narzędzia do fabryk',
+        'ASML': 'partner w ekosystemie produkcji'
+    },
+    'LRCX': {
+        'TSM': 'sprzęt do trawienia i depozycji',
+        'INTC': 'sprzęt produkcyjny',
+        'ASML': 'uzupełniający sprzęt litograficzny'
+    },
+    'ENTG': {
+        'TSM': 'dostarcza chemikalia produkcyjne',
+        'INTC': 'materiały do produkcji chipów',
+        'AMAT': 'materiały do procesów produkcyjnych'
+    },
+    'MPWR': {
+        'NVDA': 'zarządzanie energią dla GPU',
+        'AMD': 'układy zasilające procesory/GPU'
+    },
+    'AVGO': {
+        'AAPL': 'dostarcza komponenty RF',
+        'TSM': 'produkują ich chipy'
+    },
+    'QCOM': {
+        'TSM': 'TSMC produkuje ich chipy mobilne',
+        'AAPL': 'konkurent w chipach mobilnych'
+    },
+    'MRVL': {
+        'TSM': 'produkują ich chipy',
+        'NVDA': 'konkurent w chipach datacenter'
+    },
+    'KLAC': {
+        'TSM': 'sprzęt kontroli jakości',
+        'INTC': 'narzędzia inspekcyjne',
+        'ASML': 'komplementarny sprzęt'
+    },
+    'WDC': {
+        'NVDA': 'storage dla systemów AI',
+        'ORCL': 'storage dla datacenter'
+    },
+    'STX': {
+        'NVDA': 'storage dla AI/datacenter',
+        'ORCL': 'storage dla baz danych'
+    },
+    'ORCL': {
+        'NVDA': 'kupuje GPU do cloud',
+        'INTC': 'kupuje procesory serwerowe'
+    },
+    'SNOW': {
+        'NVDA': 'używa GPU do analityki AI',
+        'ORCL': 'konkurent w cloud data'
+    },
+    'MDB': {
+        'NVDA': 'używa GPU dla AI/ML',
+        'ORCL': 'konkurent w bazach danych'
+    },
+    'PLTR': {
+        'NVDA': 'używa GPU do AI analytics',
+        'ORCL': 'partner w rozwiązaniach enterprise'
+    },
+    'ARM': {
+        'NVDA': 'próba przejęcia (zablokowana)',
+        'AAPL': 'licencja na architekturę ARM',
+        'QCOM': 'licencja ARM dla chipów mobilnych'
+    }
 }
 
 # Kategorie 8-K które nas interesują
@@ -118,6 +207,94 @@ def get_recent_filings(cik: str, ticker: str) -> List[Dict]:
         print(f"❌ Błąd pobierania danych dla {ticker}: {e}")
         return []
 
+def extract_key_facts(content: str, ticker: str) -> str:
+    """Wyciąga kluczowe fakty z treści raportu 8-K"""
+    import re
+    
+    content_lower = content.lower()
+    facts = []
+    
+    # Szukaj konkretnych partnerstw/umów
+    partnership_patterns = [
+        r'partnership with ([a-z\s]+)',
+        r'agreement with ([a-z\s]+)',
+        r'collaboration with ([a-z\s]+)',
+        r'contract with ([a-z\s]+)'
+    ]
+    
+    for pattern in partnership_patterns:
+        matches = re.findall(pattern, content_lower)
+        if matches:
+            partner = matches[0].strip().title()
+            if len(partner) > 2 and len(partner) < 30:
+                facts.append(f"Partnerstwo z {partner}")
+                break
+    
+    # Szukaj wartości finansowych (miliony, miliardy)
+    money_patterns = [
+        r'\$\s?(\d+(?:,\d{3})*(?:\.\d+)?)\s?(million|billion)',
+        r'(\d+(?:,\d{3})*(?:\.\d+)?)\s?(million|billion)\s?(?:dollar|usd|\$)'
+    ]
+    
+    for pattern in money_patterns:
+        matches = re.findall(pattern, content_lower)
+        if matches:
+            amount = matches[0][0].replace(',', '')
+            unit = matches[0][1]
+            unit_pl = "mln" if unit == "million" else "mld"
+            facts.append(f"Wartość: ${amount} {unit_pl}")
+            break
+    
+    # Szukaj liczby produktów/jednostek
+    quantity_patterns = [
+        r'(\d+(?:,\d{3})*)\s?(?:million|thousand)?\s?(?:processors|chips|units|devices)',
+        r'(\d+(?:,\d{3})*)\s?(?:million|thousand)?\s?(?:procesorów|chipów|jednostek)'
+    ]
+    
+    for pattern in quantity_patterns:
+        matches = re.findall(pattern, content_lower)
+        if matches:
+            quantity = matches[0].replace(',', '')
+            facts.append(f"Ilość: {quantity} jednostek")
+            break
+    
+    # Szukaj wzrostu przychodów/zysków
+    growth_patterns = [
+        r'revenue (?:increased|grew|growth) (?:by )?(\d+)%',
+        r'(\d+)% (?:increase|growth) in revenue',
+        r'earnings (?:increased|grew) (?:by )?(\d+)%'
+    ]
+    
+    for pattern in growth_patterns:
+        matches = re.findall(pattern, content_lower)
+        if matches:
+            percentage = matches[0]
+            facts.append(f"Wzrost przychodów o {percentage}%")
+            break
+    
+    # Szukaj nowych produktów/technologii
+    if 'new product' in content_lower or 'product launch' in content_lower:
+        facts.append("Wprowadzenie nowego produktu")
+    
+    if 'ai chip' in content_lower or 'ai processor' in content_lower:
+        facts.append("Technologia: AI chips/procesory")
+    
+    # Szukaj przejęć
+    acquisition_patterns = [
+        r'acquire(?:d|s)?\s+([a-z\s]+)\s+for',
+        r'acquisition of ([a-z\s]+)'
+    ]
+    
+    for pattern in acquisition_patterns:
+        matches = re.findall(pattern, content_lower)
+        if matches:
+            target = matches[0].strip().title()
+            if len(target) > 2 and len(target) < 30:
+                facts.append(f"Przejęcie: {target}")
+                break
+    
+    return " | ".join(facts) if facts else "Brak szczegółowych danych liczbowych w raporcie"
+
 def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
     """Analizuje treść raportu 8-K"""
     acc_no_dashes = accession_number.replace('-', '')
@@ -128,26 +305,85 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
     try:
         response = requests.get(filing_url, headers=headers, timeout=15)
         response.raise_for_status()
-        content = response.text.lower()
+        content = response.text
+        content_lower = content.lower()
         
         detected_items = []
         for item_num, item_desc in IMPORTANT_ITEMS.items():
-            if f"item {item_num}" in content:
+            if f"item {item_num}" in content_lower:
                 detected_items.append(f"Item {item_num} - {item_desc}")
         
-        found_keywords = [kw for kw in KEYWORDS if kw in content]
+        found_keywords = [kw for kw in KEYWORDS if kw in content_lower]
         importance_score = len(detected_items) * 2 + len(found_keywords)
+        
+        # Wyciągnij kluczowe fakty
+        key_facts = extract_key_facts(content, ticker)
         
         return {
             'items': detected_items,
             'keywords': found_keywords[:5],
             'importance': importance_score,
+            'key_facts': key_facts,
             'url': f"https://www.sec.gov/cgi-bin/viewer?action=view&cik={cik}&accession_number={accession_number}"
         }
         
     except Exception as e:
         print(f"⚠️ Nie można przeanalizować treści {accession_number}: {e}")
-        return {'items': [], 'keywords': [], 'importance': 0, 'url': filing_url}
+        return {
+            'items': [], 
+            'keywords': [], 
+            'importance': 0, 
+            'key_facts': 'Błąd pobierania danych',
+            'url': filing_url
+        }
+
+def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
+    """Analizuje sentyment raportu 8-K"""
+    keywords = analysis.get('keywords', [])
+    items = analysis.get('items', [])
+    
+    # Pozytywne słowa kluczowe
+    bullish_keywords = ['partnership', 'collaboration', 'strategic', 'agreement', 'contract', 
+                        'revenue', 'earnings', 'growth', 'expansion', 'joint venture']
+    # Negatywne słowa kluczowe
+    bearish_keywords = ['loss', 'decline', 'lawsuit', 'investigation', 'bankruptcy', 
+                        'restructuring', 'termination', 'failure']
+    
+    bullish_score = sum(1 for kw in keywords if kw in bullish_keywords)
+    bearish_score = sum(1 for kw in keywords if kw in bearish_keywords)
+    
+    # Określ sentyment
+    if bullish_score > bearish_score:
+        sentiment = "📈 BULLISH"
+        color = 5763719  # Zielony
+        interpretation = "Pozytywne wiadomości mogą wspierać wzrost ceny. "
+        
+        if 'partnership' in keywords or 'collaboration' in keywords:
+            interpretation += "Nowe partnerstwo może otworzyć dodatkowe źródła przychodów."
+        elif 'acquisition' in keywords or 'merger' in keywords:
+            interpretation += "Przejęcie/fuzja może zwiększyć wartość rynkową spółki."
+        elif 'revenue' in keywords or 'earnings' in keywords:
+            interpretation += "Dobre wyniki finansowe mogą przyciągnąć inwestorów."
+        else:
+            interpretation += "Rynek może zareagować pozytywnie na te wiadomości."
+            
+    elif bearish_score > bullish_score:
+        sentiment = "📉 BEARISH"
+        color = 15158332  # Czerwony
+        interpretation = "Negatywne wiadomości mogą wywrzeć presję na cenę akcji. "
+        interpretation += "Zaleca się ostrożność i monitorowanie sytuacji."
+        
+    else:
+        sentiment = "➡️ NEUTRALNY"
+        color = 15844367  # Żółty
+        interpretation = "Wiadomości mają mieszany charakter. "
+        interpretation += "Wpływ na cenę zależeć będzie od reakcji rynku i dodatkowych szczegółów."
+    
+    return {
+        'sentiment': sentiment,
+        'color': color,
+        'interpretation': interpretation
+    }
 
 def send_discord_alert(filing: Dict, analysis: Dict):
     """Wysyła alert na Discord"""
@@ -159,15 +395,18 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     company = filing['company']
     date = filing['filingDate']
     
+    # Analiza sentymentu
+    sentiment_data = analyze_sentiment(analysis, ticker)
+    
+    # Link do TradingView
+    tradingview_link = f"https://www.tradingview.com/chart/?symbol={ticker}"
+    
     if analysis['importance'] >= 5:
         priority = "🔴 BARDZO WAŻNE"
-        color = 15158332
     elif analysis['importance'] >= 3:
         priority = "🟡 WAŻNE"
-        color = 15844367
     else:
         priority = "🟢 INFORMACYJNE"
-        color = 3066993
     
     related = RELATIONSHIPS.get(ticker, [])
     related_text = ", ".join(related[:5]) if related else "Brak bezpośrednich powiązań"
@@ -176,15 +415,17 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     
     embed = {
         "title": f"{priority} - Nowy raport 8-K",
-        "description": f"**{company} ({ticker})**",
-        "color": color,
+        "description": f"**{company} ({ticker})**\n\n{sentiment_data['sentiment']}\n*{sentiment_data['interpretation']}*",
+        "color": sentiment_data['color'],
         "fields": [
             {"name": "📅 Data zgłoszenia", "value": date, "inline": True},
             {"name": "📊 Ocena ważności", "value": f"{analysis['importance']}/10", "inline": True},
             {"name": "📋 Wykryte kategorie", "value": items_text, "inline": False},
             {"name": "🔍 Kluczowe słowa", "value": keywords_text, "inline": False},
             {"name": "🔗 Potencjalny wpływ na", "value": related_text, "inline": False},
-            {"name": "🌐 Link do dokumentu", "value": f"[Otwórz raport SEC]({analysis['url']})", "inline": False}
+            {"name": "📈 Wykres", "value": f"[Otwórz na TradingView]({tradingview_link})", "inline": True},
+            {"name": "📄 Dokument SEC", "value": f"[Otwórz raport]({analysis['url']})", "inline": True},
+            {"name": "📌 KLUCZOWE FAKTY", "value": f"```{analysis['key_facts']}```", "inline": False}
         ],
         "footer": {"text": f"SEC EDGAR Monitor • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
     }
