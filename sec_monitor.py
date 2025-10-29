@@ -470,7 +470,7 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
             'items': [], 
             'keywords': [], 
             'importance': 0, 
-            'document_excerpt': {'excerpt': 'Błąd pobierania dokumentu', 'key_numbers': 'N/A'},
+            'document_excerpt': 'Błąd pobierania dokumentu',
             'url': filing_url
         }
 
@@ -609,15 +609,6 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     
     items_text = "\n".join([f"• {item}" for item in analysis['items']]) if analysis['items'] else "Brak wykrytych Items"
     keywords_text = ", ".join(analysis['keywords']) if analysis['keywords'] else "Brak"
-    
-    # Pobierz fragment i kluczowe liczby
-    doc_data = analysis.get('document_excerpt', {})
-    if isinstance(doc_data, dict):
-        document_excerpt = doc_data.get('excerpt', 'Brak fragmentu')
-        key_numbers = doc_data.get('key_numbers', 'Brak danych')
-    else:
-        document_excerpt = str(doc_data)
-        key_numbers = 'Brak danych'
     
     embed = {
         "title": f"{priority} - Nowy raport 8-K",
