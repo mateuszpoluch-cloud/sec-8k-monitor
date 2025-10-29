@@ -262,6 +262,7 @@ def translate_to_polish(text: str) -> str:
 def extract_document_excerpt(content: str, detected_items: list) -> str:
     """Wyciąga fragment dokumentu z najważniejszej sekcji Item"""
     import re
+    import html
     
     # Znajdź najważniejszą sekcję Item
     priority_items = ['1.01', '1.02', '8.01', '2.02']
@@ -275,22 +276,33 @@ def extract_document_excerpt(content: str, detected_items: list) -> str:
             if match:
                 excerpt = match.group(1).strip()
                 
-                # Wyczyść z HTML tagów i zbędnych znaków
+                # Wyczyść z HTML tagów
                 excerpt = re.sub(r'<[^>]+>', '', excerpt)
-                excerpt = re.sub(r'\s+', ' ', excerpt)
+                
+                # Dekoduj HTML entities (&#58; → :, &#64; → @, etc.)
+                excerpt = html.unescape(excerpt)
+                
+                # Wyczyść dziwne znaki
                 excerpt = excerpt.replace('&nbsp;', ' ')
                 excerpt = excerpt.replace('&#160;', ' ')
+                
+                # Usuń znaki formatowania (bullet points, etc.)
+                excerpt = re.sub(r'[•◦▪□■]', '', excerpt)
+                
+                # Normalizuj białe znaki
+                excerpt = re.sub(r'\s+', ' ', excerpt)
+                excerpt = excerpt.strip()
                 
                 # Weź pierwsze 800 znaków (około 3-4 zdania)
                 if len(excerpt) > 800:
                     # Znajdź koniec zdania
                     end = excerpt[:800].rfind('.')
-                    if end > 300:  # Jeśli znalazł sensowne zakończenie
+                    if end > 300:
                         excerpt = excerpt[:end+1]
                     else:
                         excerpt = excerpt[:800] + '...'
                 
-                # Przetłumacz kluczowe terminy
+                # Przetłumacz kluczowe terminy DOPIERO NA KOŃCU
                 excerpt_pl = translate_to_polish(excerpt)
                 
                 return excerpt_pl
