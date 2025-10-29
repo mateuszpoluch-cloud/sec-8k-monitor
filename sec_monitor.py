@@ -208,88 +208,95 @@ def get_recent_filings(cik: str, ticker: str) -> List[Dict]:
         print(f"❌ Błąd pobierania danych dla {ticker}: {e}")
         return []
 
-def translate_to_polish(text: str) -> str:
-    """Podstawowe tłumaczenie kluczowych terminów finansowych na polski"""
+def translate_to_polish_full(text: str) -> str:
+    """Pełniejsze tłumaczenie tekstu finansowego na polski"""
+    import re
+    
+    # Mapowanie terminów - najpierw długie frazy, potem pojedyncze słowa
     translations = {
-        # Podstawowe
-        'agreement': 'umowa',
-        'partnership': 'partnerstwo',
-        'acquisition': 'przejęcie',
-        'merger': 'fuzja',
-        'revenue': 'przychody',
-        'revenues': 'przychody',
-        'earnings': 'zyski',
-        'income': 'dochód',
-        'loss': 'strata',
-        'growth': 'wzrost',
-        'decline': 'spadek',
-        'increased': 'wzrosły',
-        'decreased': 'spadły',
-        'announced': 'ogłosił',
-        'announced that': 'ogłosił że',
-        'reported': 'raportował',
-        'entered into': 'zawarł',
-        'signed': 'podpisał',
-        'highlights': 'najważniejsze informacje',
-        
-        # Finansowe
-        'million': 'milionów',
-        'billion': 'miliardów',
-        'quarter': 'kwartał',
-        'quarterly': 'kwartalny',
-        'fiscal year': 'rok finansowy',
-        'net income': 'zysk netto',
-        'operating income': 'zysk operacyjny',
-        'gross profit': 'zysk brutto',
-        'gross margin': 'marża brutto',
+        # Długie frazy
+        'FINANCIAL RESULTS': 'WYNIKI FINANSOWE',
+        'financial results': 'wyniki finansowe',
+        'Investor Relations': 'Relacje Inwestorskie',
+        'Media Contact': 'Kontakt dla mediów',
         'year-over-year': 'rok do roku',
         'compared to': 'w porównaniu do',
-        'cash flow': 'przepływy pieniężne',
+        'cash flow from operations': 'przepływy pieniężne z operacji',
         'free cash flow': 'wolne przepływy pieniężne',
-        'diluted': 'rozwodniony',
+        'returned to shareholders': 'zwrócono akcjonariuszom',
+        'diluted EPS': 'rozwodniony zysk na akcję',
         'per share': 'na akcję',
-        'EPS': 'zysk na akcję',
-        'GAAP': 'GAAP (standardy księgowe USA)',
-        'non-GAAP': 'non-GAAP (bez jednorazowych pozycji)',
-        'shareholders': 'akcjonariusze',
-        'stockholders': 'akcjonariusze',
-        'dividends': 'dywidendy',
-        'repurchase': 'wykup akcji własnych',
-        'shares': 'akcje',
-        'ordinary shares': 'akcje zwykłe',
-        'returned to': 'zwrócono do',
-        'approximately': 'około',
+        'gross margin': 'marża brutto',
+        'net income': 'zysk netto',
+        'operating income': 'zysk operacyjny',
+        'fiscal year': 'rok fiskalny',
+        'fiscal quarter': 'kwartał fiskalny',
+        'announced that': 'ogłosił, że',
+        'reports that': 'raportuje, że',
+        'at record levels': 'na rekordowych poziomach',
         
-        # Biznesowe
-        'pursuant to': 'zgodnie z',
-        'effective': 'obowiązujący',
-        'board of directors': 'rada dyrektorów',
-        'management': 'zarząd',
-        'common stock': 'akcje zwykłe',
-        'securities': 'papiery wartościowe',
-        'operations': 'operacje',
-        'through': 'poprzez',
-        'investor relations': 'relacje inwestorskie',
-        'media contact': 'kontakt dla mediów',
-        'financial results': 'wyniki finansowe',
-        'technology': 'technologia',
+        # Pojedyncze słowa
+        'TECHNOLOGY': 'TECHNOLOGIA',
+        'Technology': 'Technologia',
+        'REPORTS': 'RAPORTUJE',
         'reports': 'raportuje',
+        'FISCAL': 'FISKALNY',
+        'Fiscal': 'Fiskalny',
+        'Quarter': 'Kwartał',
+        'quarter': 'kwartał',
+        'Highlights': 'Najważniejsze',
+        'highlights': 'najważniejsze',
+        'Revenue': 'Przychody',
+        'revenue': 'przychody',
+        'revenues': 'przychody',
+        'GAAP': 'GAAP',
+        'non-GAAP': 'non-GAAP',
+        'earnings': 'zyski',
+        'income': 'dochód',
+        'margin': 'marża',
+        'billion': 'miliardów',
+        'million': 'milionów',
+        'approximately': 'około',
+        'quarterly': 'kwartalnie',
+        'dividends': 'dywidendy',
+        'repurchase': 'wykup',
+        'shares': 'akcji',
+        'ordinary': 'zwykłych',
+        'shareholders': 'akcjonariuszy',
+        'stockholders': 'akcjonariuszy',
+        'through': 'poprzez',
+        'announced': 'ogłosił',
+        'reported': 'raportował',
+        'increased': 'wzrosły',
+        'decreased': 'spadły',
+        'growth': 'wzrost',
+        'decline': 'spadek',
+        'partnership': 'partnerstwo',
+        'agreement': 'umowa',
+        'acquisition': 'przejęcie',
+        'merger': 'fuzja',
+        'operations': 'operacji',
+        'returned': 'zwrócono',
+        'Returned': 'Zwrócono',
+        'Cash': 'Przepływy',
+        'flow': 'pieniężne',
     }
     
-    translated = text
-    for eng, pl in translations.items():
-        # Zamiana całych słów/fraz (case insensitive)
-        import re
-        # Dla fraz (więcej niż jedno słowo)
-        if ' ' in eng:
-            pattern = re.escape(eng)
-            translated = re.sub(pattern, pl, translated, flags=re.IGNORECASE)
-        else:
-            # Dla pojedynczych słów - tylko pełne słowa
-            pattern = r'\b' + re.escape(eng) + r'\b'
-            translated = re.sub(pattern, pl, translated, flags=re.IGNORECASE)
+    result = text
     
-    return translated
+    # Sortuj od najdłuższych do najkrótszych
+    sorted_terms = sorted(translations.items(), key=lambda x: len(x[0]), reverse=True)
+    
+    for eng, pl in sorted_terms:
+        if ' ' in eng:
+            # Dla fraz - zamień dokładnie
+            result = result.replace(eng, pl)
+        else:
+            # Dla pojedynczych słów - użyj word boundary
+            pattern = r'\b' + re.escape(eng) + r'\b'
+            result = re.sub(pattern, pl, result)
+    
+    return result
 
 def extract_document_excerpt(content: str, detected_items: list) -> str:
     """Wyciąga fragment dokumentu z najważniejszej sekcji Item"""
@@ -389,6 +396,52 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
         }
 
 def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
+    """Analizuje sentyment raportu 8-K"""
+    keywords = analysis.get('keywords', [])
+    items = analysis.get('items', [])
+    
+    # Pozytywne słowa kluczowe
+    bullish_keywords = ['partnership', 'collaboration', 'strategic', 'agreement', 'contract', 
+                        'revenue', 'earnings', 'growth', 'expansion', 'joint venture']
+    # Negatywne słowa kluczowe
+    bearish_keywords = ['loss', 'decline', 'lawsuit', 'investigation', 'bankruptcy', 
+                        'restructuring', 'termination', 'failure']
+    
+    bullish_score = sum(1 for kw in keywords if kw in bullish_keywords)
+    bearish_score = sum(1 for kw in keywords if kw in bearish_keywords)
+    
+    # Określ sentyment
+    if bullish_score > bearish_score:
+        sentiment = "📈 BULLISH"
+        color = 5763719  # Zielony
+        interpretation = "Pozytywne wiadomości mogą wspierać wzrost ceny. "
+        
+        if 'partnership' in keywords or 'collaboration' in keywords:
+            interpretation += "Nowe partnerstwo może otworzyć dodatkowe źródła przychodów."
+        elif 'acquisition' in keywords or 'merger' in keywords:
+            interpretation += "Przejęcie/fuzja może zwiększyć wartość rynkową spółki."
+        elif 'revenue' in keywords or 'earnings' in keywords:
+            interpretation += "Dobre wyniki finansowe mogą przyciągnąć inwestorów."
+        else:
+            interpretation += "Rynek może zareagować pozytywnie na te wiadomości."
+            
+    elif bearish_score > bullish_score:
+        sentiment = "📉 BEARISH"
+        color = 15158332  # Czerwony
+        interpretation = "Negatywne wiadomości mogą wywrzeć presję na cenę akcji. "
+        interpretation += "Zaleca się ostrożność i monitorowanie sytuacji."
+        
+    else:
+        sentiment = "➡️ NEUTRALNY"
+        color = 15844367  # Żółty
+        interpretation = "Wiadomości mają mieszany charakter. "
+        interpretation += "Wpływ na cenę zależeć będzie od reakcji rynku i dodatkowych szczegółów."
+    
+    return {
+        'sentiment': sentiment,
+        'color': color,
+        'interpretation': interpretation
+    }
     """Analizuje sentyment raportu 8-K"""
     keywords = analysis.get('keywords', [])
     items = analysis.get('items', [])
