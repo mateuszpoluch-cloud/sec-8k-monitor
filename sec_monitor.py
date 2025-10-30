@@ -2,10 +2,12 @@ import requests
 import json
 from datetime import datetime, timedelta
 import os
-from typing import List, Dict
+from typing import List, Dict, Set
 
 # Konfiguracja
 DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')
+GIST_TOKEN = os.environ.get('GIST_TOKEN', '')  # NOWY: Token do GitHub API (zmienione z GITHUB_TOKEN)
+GIST_ID = os.environ.get('GIST_ID', '')  # NOWY: ID Gist do przechowywania stanu
 USER_AGENT = "SEC-Monitor/1.0 (your-email@example.com)"  # ZMIEN NA SWOJ EMAIL
 
 # Lista spolek z ekosystemu AI/polprzewodnikow
@@ -55,7 +57,86 @@ KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'co
             'joint venture', 'strategic', 'ai', 'artificial intelligence', 'chip', 'semiconductor', 
             'revenue', 'earnings', 'guidance']
 
-def load_processed_filings():
+# === NOWE FUNKCJE DO OBSLUGI GIST ===
+
+def load_processed_filings_from_gist() -> Set[str]:
+    """Pobiera liste przetworzonych zgloszen z GitHub Gist"""
+    if not GIST_TOKEN or not GIST_ID:
+        print("WARNING: Brak GIST_TOKEN lub GIST_ID - uzywam lokalnego pliku")
+        return load_processed_filings_local()
+    
+    try:
+        headers = {
+            'Authorization': f'token {GIST_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        
+        url = f'https://api.github.com/gists/{GIST_ID}'
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        
+        gist_data = response.json()
+        
+        # Pobierz zawartosc pliku processed_filings.json z Gist
+        if 'files' in gist_data and 'processed_filings.json' in gist_data['files']:
+            content = gist_data['files']['processed_filings.json']['content']
+            data = json.loads(content)
+            filings_set = set(data.get('filings', []))
+            print(f"✓ Zaladowano {len(filings_set)} przetworzonych zgloszen z Gist")
+            return filings_set
+        else:
+            print("Gist nie zawiera pliku processed_filings.json - tworze nowy")
+            return set()
+            
+    except Exception as e:
+        print(f"ERROR: Nie udalo sie pobrac danych z Gist: {e}")
+        print("Uzywam lokalnego pliku jako fallback")
+        return load_processed_filings_local()
+
+def save_processed_filings_to_gist(processed: Set[str]):
+    """Zapisuje liste przetworzonych zgloszen do GitHub Gist"""
+    if not GIST_TOKEN or not GIST_ID:
+        print("WARNING: Brak GIST_TOKEN lub GIST_ID - zapisuje lokalnie")
+        save_processed_filings_local(processed)
+        return
+    
+    try:
+        headers = {
+            'Authorization': f'token {GIST_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+        }
+        
+        # Dodaj timestamp do danych
+        data_to_save = {
+            'filings': list(processed),
+            'last_updated': datetime.now().isoformat(),
+            'total_count': len(processed)
+        }
+        
+        payload = {
+            'files': {
+                'processed_filings.json': {
+                    'content': json.dumps(data_to_save, indent=2)
+                }
+            }
+        }
+        
+        url = f'https://api.github.com/gists/{GIST_ID}'
+        response = requests.patch(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        
+        print(f"✓ Zapisano {len(processed)} zgloszen do Gist")
+        
+    except Exception as e:
+        print(f"ERROR: Nie udalo sie zapisac do Gist: {e}")
+        print("Zapisuje lokalnie jako fallback")
+        save_processed_filings_local(processed)
+
+# === FALLBACK: LOKALNE FUNKCJE (jesli Gist nie dziala) ===
+
+def load_processed_filings_local() -> Set[str]:
+    """Lokalne ladowanie z pliku (fallback)"""
     try:
         with open('processed_filings.json', 'r') as f:
             data = json.load(f)
@@ -63,9 +144,12 @@ def load_processed_filings():
     except FileNotFoundError:
         return set()
 
-def save_processed_filings(processed):
+def save_processed_filings_local(processed: Set[str]):
+    """Lokalne zapisywanie do pliku (fallback)"""
     with open('processed_filings.json', 'w') as f:
-        json.dump({'filings': list(processed)}, f)
+        json.dump({'filings': list(processed), 'last_updated': datetime.now().isoformat()}, f)
+
+# === POZOSTALE FUNKCJE (bez zmian) ===
 
 def get_recent_filings(cik: str, ticker: str) -> List[Dict]:
     url = f"https://data.sec.gov/submissions/CIK{cik.zfill(10)}.json"
@@ -256,7 +340,7 @@ def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
     bearish_score = sum(1 for kw in keywords if kw in bearish_kw)
     
     if bullish_score > bearish_score:
-        sentiment = "📈 BULLISH"
+        sentiment = "BULLISH"
         color = 5763719
         interpretation = "Pozytywne wiadomosci moga wspierac wzrost ceny."
         if 'partnership' in keywords or 'collaboration' in keywords:
@@ -264,11 +348,11 @@ def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
         elif 'revenue' in keywords or 'earnings' in keywords:
             interpretation += " Dobre wyniki finansowe moga przyciagnac inwestorow."
     elif bearish_score > bullish_score:
-        sentiment = "📉 BEARISH"
+        sentiment = "BEARISH"
         color = 15158332
         interpretation = "Negatywne wiadomosci moga wywrzec presje na cene akcji."
     else:
-        sentiment = "➡️ NEUTRALNY"
+        sentiment = "NEUTRALNY"
         color = 15844367
         interpretation = "Wiadomosci maja mieszany charakter."
     
@@ -335,16 +419,16 @@ def send_discord_alert(filing: Dict, analysis: Dict):
         "description": f"**{company} ({ticker})**\n*{company_desc}*\n\n{sentiment_data['sentiment']}\n*{sentiment_data['interpretation']}*",
         "color": sentiment_data['color'],
         "fields": [
-            {"name": "📅 Data zgloszenia", "value": date, "inline": True},
-            {"name": "📊 Ocena waznosci", "value": f"{analysis['importance']}/10", "inline": True},
-            {"name": "📋 Wykryte kategorie", "value": items_text, "inline": False},
-            {"name": "🔍 Kluczowe slowa", "value": keywords_text, "inline": False},
-            {"name": "🔗 Potencjalny wplyw na", "value": related_text, "inline": False},
-            {"name": "📈 Wykres", "value": f"[Otworz na TradingView]({tradingview_link})", "inline": True},
-            {"name": "📄 Dokument SEC", "value": f"[Otworz raport]({analysis['url']})", "inline": True},
-            {"name": "📄 FRAGMENT DOKUMENTU (tlumaczenie)", "value": f"```{document_excerpt[:900]}```", "inline": False},
-            {"name": "📊 KLUCZOWE DANE", "value": key_numbers, "inline": False},
-            {"name": "🕐 Publikacja na SEC", "value": publication_time, "inline": False}
+            {"name": "Data zgloszenia", "value": date, "inline": True},
+            {"name": "Ocena waznosci", "value": f"{analysis['importance']}/10", "inline": True},
+            {"name": "Wykryte kategorie", "value": items_text, "inline": False},
+            {"name": "Kluczowe slowa", "value": keywords_text, "inline": False},
+            {"name": "Potencjalny wplyw na", "value": related_text, "inline": False},
+            {"name": "Wykres", "value": f"[Otworz na TradingView]({tradingview_link})", "inline": True},
+            {"name": "Dokument SEC", "value": f"[Otworz raport]({analysis['url']})", "inline": True},
+            {"name": "FRAGMENT DOKUMENTU (tlumaczenie)", "value": f"```{document_excerpt[:900]}```", "inline": False},
+            {"name": "KLUCZOWE DANE", "value": key_numbers, "inline": False},
+            {"name": "Publikacja na SEC", "value": publication_time, "inline": False}
         ],
         "footer": {"text": f"SEC EDGAR Monitor {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
     }
@@ -354,14 +438,17 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     try:
         response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
         response.raise_for_status()
-        print(f"Alert sent: {ticker} - {date}")
+        print(f"✓ Alert sent: {ticker} - {date}")
     except Exception as e:
-        print(f"Error sending alert: {e}")
+        print(f"✗ Error sending alert: {e}")
 
 def check_new_filings():
-    print(f"\nChecking new 8-K filings... [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+    print(f"\n{'='*60}")
+    print(f"Checking new 8-K filings... [{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]")
+    print(f"{'='*60}")
     
-    processed_filings = load_processed_filings()
+    # ZMIANA: Uzywamy Gist zamiast lokalnego pliku
+    processed_filings = load_processed_filings_from_gist()
     new_filings_count = 0
     
     for ticker, info in COMPANIES.items():
@@ -370,42 +457,56 @@ def check_new_filings():
         for filing in filings:
             filing_id = f"{ticker}_{filing['accessionNumber']}"
             
+            # Sprawdz czy juz przetworzono
             if filing_id in processed_filings:
                 continue
             
+            # Sprawdz czy nie jest za stare (48h)
             filing_date = datetime.strptime(filing['filingDate'], '%Y-%m-%d')
             if datetime.now() - filing_date > timedelta(hours=48):
                 processed_filings.add(filing_id)
                 continue
             
-            print(f"New filing: {ticker} - {filing['filingDate']}")
+            print(f"🆕 NEW FILING: {ticker} - {filing['filingDate']}")
             
+            # Analizuj zawartosc
             analysis = analyze_8k_content(filing['accessionNumber'], ticker)
             
+            # Wyslij alert tylko jesli znaleziono wazne Items
             if analysis['items']:
                 send_discord_alert(filing, analysis)
                 new_filings_count += 1
+            else:
+                print(f"   ↳ Pominieto (brak istotnych Items)")
             
+            # Dodaj do przetworzonych
             processed_filings.add(filing_id)
     
-    save_processed_filings(processed_filings)
+    # ZMIANA: Zapisz stan do Gist
+    save_processed_filings_to_gist(processed_filings)
     
+    print(f"\n{'='*60}")
     if new_filings_count == 0:
-        print("No new filings")
+        print("✓ No new filings requiring alerts")
     else:
-        print(f"Sent {new_filings_count} alerts")
+        print(f"✓ Sent {new_filings_count} new alert(s)")
+    print(f"{'='*60}\n")
 
 def main():
-    print("SEC 8-K Monitor - GitHub Actions")
-    print(f"Companies: {len(COMPANIES)}")
-    print(f"Categories: {', '.join(IMPORTANT_ITEMS.keys())}")
+    print("\n" + "="*60)
+    print("SEC 8-K Monitor - GitHub Actions + Gist Storage")
+    print("="*60)
+    print(f"Companies monitored: {len(COMPANIES)}")
+    print(f"Important categories: {', '.join(IMPORTANT_ITEMS.keys())}")
+    print(f"Gist storage: {'✓ ENABLED' if GIST_TOKEN and GIST_ID else '✗ DISABLED (using local file)'}")
+    print("="*60)
     
     if not DISCORD_WEBHOOK_URL:
-        print("WARNING: Set DISCORD_WEBHOOK_URL in GitHub Secrets!")
+        print("\n⚠️  WARNING: DISCORD_WEBHOOK_URL not set in GitHub Secrets!")
         return
     
     check_new_filings()
-    print("\nDone")
+    print("\n✓ Monitor run completed\n")
 
 if __name__ == "__main__":
     main()
