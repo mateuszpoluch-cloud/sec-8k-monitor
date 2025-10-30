@@ -2,9 +2,11 @@ name: SEC 8-K Monitor
 
 on:
   schedule:
-    # Uruchamia się co 15 minut
+    # Uruchamia co 15 minut
     - cron: '*/15 * * * *'
-  workflow_dispatch:  # Możliwość ręcznego uruchomienia
+  
+  # Możliwość ręcznego uruchomienia z GitHub UI
+  workflow_dispatch:
 
 jobs:
   monitor:
@@ -12,33 +14,31 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
-      
+      uses: actions/checkout@v4
+    
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-        
+    
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
-        
-    - name: Download previous state
-      uses: actions/download-artifact@v4
-      with:
-        name: processed-filings
-        path: .
-      continue-on-error: true
-      
+        python -m pip install --upgrade pip
+        pip install requests
+    
     - name: Run SEC Monitor
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        GIST_ID: ${{ secrets.GIST_ID }}
       run: |
         python sec_monitor.py
-        
-    - name: Upload state
-      uses: actions/upload-artifact@v4
+    
+    - name: Upload logs (optional)
+      if: always()
+      uses: actions/upload-artifact@v3
       with:
-        name: processed-filings
-        path: processed_filings.json
+        name: monitor-logs
+        path: |
+          *.log
         retention-days: 7
