@@ -29,8 +29,10 @@ jobs:
     - name: Run SEC Monitor
       env:
         DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
-        GIST_ID: ${{ secrets.GIST_ID }}
+  DISCORD_WEBHOOK_AI: ${{ secrets.DISCORD_WEBHOOK_AI }}  # ← DODAJ
+  GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+  GIST_ID: ${{ secrets.GIST_ID }}
+  GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}  # ← DODAJ
       run: |
         python sec_monitor.py
     
