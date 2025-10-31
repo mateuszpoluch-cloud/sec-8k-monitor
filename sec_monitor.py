@@ -129,10 +129,6 @@ IMPACT_SCORE = {
     '1.02': 5,   # Zakup/Sprzedaz aktywow
     '2.03': 5,   # Zobowiazania
     '7.01': 5,   # Regulacje
-}
-
-KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'collaboration',
-    '7.01': 5,   # Regulacje
     '1.02': 4    # Zakup/Sprzedaz aktywow
 }
 
