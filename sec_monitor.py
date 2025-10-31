@@ -106,8 +106,34 @@ RELATIONSHIPS = {
 IMPORTANT_ITEMS = {
     '1.01': 'Przejecia/Fuzje/Akwizycje',
     '1.02': 'Zakup/Sprzedaz aktywow',
-    '8.01': 'Inne istotne wydarzenia',
-    '2.02': 'Wyniki finansowe'
+    '2.02': 'Wyniki finansowe (Earnings)',
+    '2.03': 'Zobowiazania/Material Obligations',
+    '2.05': 'Restrukturyzacja/Costs',
+    '3.03': 'Split akcji (Stock Split)',
+    '4.02': 'Restatement (korekta wynikow)',
+    '5.02': 'Zmiany w zarzadzie (CEO/CFO)',
+    '7.01': 'Regulacje/SEC Regulations',
+    '8.01': 'Inne istotne wydarzenia'
+}
+
+# Impact Score - waga waznosci kazdego Item (1-10)
+# Im wyzszy score, tym wiekszy potencjalny wplyw na cene akcji
+IMPACT_SCORE = {
+    '2.02': 10,  # Earnings - NAJWAZNIEJSZE
+    '1.01': 9,   # M&A/Acquisitions - duzy impact
+    '4.02': 9,   # Restatement - czesto niedoceniany, bardzo cenotwórczy
+    '5.02': 8,   # Zmiany w zarzadzie (CEO/CFO) - natychmiastowa reakcja
+    '2.05': 7,   # Restrukturyzacja - pozytywny przy oszczednosciach
+    '8.01': 7,   # Inne istotne - zalezy od tresci
+    '3.03': 6,   # Stock split - katalizator po wzrostach
+    '1.02': 5,   # Zakup/Sprzedaz aktywow
+    '2.03': 5,   # Zobowiazania
+    '7.01': 5,   # Regulacje
+}
+
+KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'collaboration',
+    '7.01': 5,   # Regulacje
+    '1.02': 4    # Zakup/Sprzedaz aktywow
 }
 
 KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'collaboration', 
@@ -360,18 +386,29 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
         content_lower = content.lower()
         
         detected_items = []
+        max_impact = 0
+        
         for item_num, item_desc in IMPORTANT_ITEMS.items():
             if f"item {item_num}" in content_lower:
-                detected_items.append(f"Item {item_num} - {item_desc}")
+                impact = IMPACT_SCORE.get(item_num, 5)
+                detected_items.append({
+                    'code': item_num,
+                    'description': item_desc,
+                    'impact': impact
+                })
+                max_impact = max(max_impact, impact)
         
         found_keywords = [kw for kw in KEYWORDS if kw in content_lower]
-        importance_score = len(detected_items) * 2 + len(found_keywords)
+        
+        # Importance score bazuje na najwyzszym impact score + keywords
+        importance_score = max_impact + len(found_keywords)
         
         return {
             'items': detected_items,
             'keywords': found_keywords[:5],
             'importance': importance_score,
-            'full_document': content,  # NOWE: Pełny dokument dla Gemini
+            'max_impact': max_impact,
+            'full_document': content,
             'url': f"https://www.sec.gov/cgi-bin/viewer?action=view&cik={cik}&accession_number={accession_number}"
         }
         
@@ -381,6 +418,7 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
             'items': [], 
             'keywords': [], 
             'importance': 0,
+            'max_impact': 0,
             'full_document': '',
             'url': filing_url
         }
@@ -444,10 +482,14 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     sentiment_data = analyze_sentiment(analysis, ticker)
     tradingview_link = f"https://www.tradingview.com/chart/?symbol={ticker}"
     
-    if analysis['importance'] >= 5:
+    # Priority based on max impact score
+    max_impact = analysis.get('max_impact', 0)
+    if max_impact >= 9:
         priority = "🔴 BARDZO WAZNE"
-    elif analysis['importance'] >= 3:
-        priority = "🟡 WAZNE"
+    elif max_impact >= 7:
+        priority = "🟠 WAZNE"
+    elif max_impact >= 5:
+        priority = "🟡 SREDNIE"
     else:
         priority = "🟢 INFORMACYJNE"
     
@@ -465,7 +507,26 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     else:
         related_text = "Brak bezposrednich powiazan"
     
-    items_text = "\n".join([f"{item}" for item in analysis['items']]) if analysis['items'] else "Brak wykrytych Items"
+    # Format items with impact scores and emoji indicators
+    if analysis['items']:
+        items_list = []
+        for item in analysis['items']:
+            impact = item['impact']
+            # Emoji based on impact score
+            if impact >= 9:
+                emoji = "🔴"  # Critical
+            elif impact >= 7:
+                emoji = "🟠"  # High
+            elif impact >= 5:
+                emoji = "🟡"  # Medium
+            else:
+                emoji = "🟢"  # Low
+            
+            items_list.append(f"{emoji} Item {item['code']} - {item['description']} (Impact: {impact}/10)")
+        items_text = "\n".join(items_list)
+    else:
+        items_text = "Brak wykrytych Items"
+    
     keywords_text = ", ".join(analysis['keywords']) if analysis['keywords'] else "Brak"
     
     doc_data = analysis.get('document_excerpt', {})
@@ -482,7 +543,7 @@ def send_discord_alert(filing: Dict, analysis: Dict):
         "color": sentiment_data['color'],
         "fields": [
             {"name": "Data zgloszenia", "value": date, "inline": True},
-            {"name": "Ocena waznosci", "value": f"{analysis['importance']}/10", "inline": True},
+            {"name": "Impact Score", "value": f"{analysis.get('max_impact', 0)}/10 (Waznosc: {analysis['importance']})", "inline": True},
             {"name": "Wykryte kategorie", "value": items_text, "inline": False},
             {"name": "Kluczowe slowa", "value": keywords_text, "inline": False},
             {"name": "Potencjalny wplyw na", "value": related_text, "inline": False},
