@@ -1,3 +1,8 @@
+#!/usr/bin/env python3
+"""
+SEC 8-K Monitor v2.0 - EXTENDED + AI (Groq)
+"""
+
 import requests
 import json
 from datetime import datetime, timedelta
@@ -9,11 +14,11 @@ from typing import List, Dict, Set
 # KONFIGURACJA
 # ============================================
 
-DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '')  # Kanal #1 (pozostaje bez zmian)
-DISCORD_WEBHOOK_AI = os.environ.get('DISCORD_WEBHOOK_AI', '')   # Kanal #2 (NOWY - AI analizy)
-GIST_TOKEN = os.environ.get('GIST_TOKEN', '')
-GIST_ID = os.environ.get('GIST_ID', '')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')  # NOWY - Google Gemini
+DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '').strip()  # Kanal #1 (pozostaje bez zmian)
+DISCORD_WEBHOOK_AI = os.environ.get('DISCORD_WEBHOOK_AI', '').strip()   # Kanal #2 (NOWY - AI analizy)
+GIST_TOKEN = os.environ.get('GIST_TOKEN', '').strip()
+GIST_ID = os.environ.get('GIST_ID', '').strip()
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '').strip()  # ✅ ZMIENIONE z GEMINI na GROQ
 USER_AGENT = "SEC-Monitor/2.0 (your-email@example.com)"
 
 # ============================================
@@ -117,7 +122,6 @@ IMPORTANT_ITEMS = {
 }
 
 # Impact Score - waga waznosci kazdego Item (1-10)
-# Im wyzszy score, tym wiekszy potencjalny wplyw na cene akcji
 IMPACT_SCORE = {
     '2.02': 10,  # Earnings - NAJWAZNIEJSZE
     '1.01': 9,   # M&A/Acquisitions - duzy impact
@@ -129,7 +133,6 @@ IMPACT_SCORE = {
     '1.02': 5,   # Zakup/Sprzedaz aktywow
     '2.03': 5,   # Zobowiazania
     '7.01': 5,   # Regulacje
-    '1.02': 4    # Zakup/Sprzedaz aktywow
 }
 
 KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'collaboration', 
@@ -137,7 +140,7 @@ KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'co
             'revenue', 'earnings', 'guidance', 'quantum', 'cloud', 'datacenter', 'biotech']
 
 # ============================================
-# FUNKCJE GIST (bez zmian)
+# FUNKCJE GIST
 # ============================================
 
 def load_processed_filings_from_gist() -> Set[str]:
@@ -205,18 +208,12 @@ def save_processed_filings_to_gist(processed: Set[str]):
         print(f"ERROR: Nie udalo sie zapisac do Gist: {e}")
 
 # ============================================
-# NOWE: YAHOO FINANCE INTEGRATION
+# YAHOO FINANCE INTEGRATION
 # ============================================
 
 def get_yahoo_finance_data(ticker: str) -> Dict:
     """Pobiera dane z Yahoo Finance: konsensus EPS, revenue, target price"""
     try:
-        # Yahoo Finance nie ma oficjalnego API, ale mozemy uzyc publicznego endpointu
-        # Alternatywnie mozna uzyc yfinance library, ale dla prostoty uzywamy requests
-        
-        # Symulowane dane (w prawdziwej wersji pobierasz z Yahoo/Alpha Vantage/FMP)
-        # W produkcji uzyj: import yfinance as yf; stock = yf.Ticker(ticker)
-        
         yahoo_data = {
             'consensus_eps': None,
             'consensus_revenue': None,
@@ -227,7 +224,7 @@ def get_yahoo_finance_data(ticker: str) -> Dict:
         
         print(f"   → Pobieranie danych Yahoo Finance dla {ticker}...")
         
-        # Tutaj w prawdziwej wersji byłby request do Yahoo Finance API
+        # W produkcji: import yfinance as yf; stock = yf.Ticker(ticker)
         # Dla demo zwracamy podstawową strukturę
         
         return yahoo_data
@@ -237,18 +234,21 @@ def get_yahoo_finance_data(ticker: str) -> Dict:
         return {}
 
 # ============================================
-# NOWE: GEMINI AI INTEGRATION
+# ✅ GROQ AI INTEGRATION (ZMIENIONE Z GEMINI)
 # ============================================
 
-def analyze_with_gemini(document_text: str, ticker: str, company: str, yahoo_data: Dict) -> Dict:
-    """Analizuje dokument 8-K używając Gemini AI"""
+def analyze_with_groq(document_text: str, ticker: str, company: str, yahoo_data: Dict) -> Dict:
+    """Analizuje dokument 8-K używając Groq AI (Llama 3.3 70B)"""
     
-    if not GEMINI_API_KEY:
-        print("   → Brak GEMINI_API_KEY - pomijam analizę AI")
+    if not GROQ_API_KEY:
+        print("   → Brak GROQ_API_KEY - pomijam analizę AI")
         return None
     
     try:
-        print(f"   → Wysyłanie do Gemini AI...")
+        print(f"   → Wysyłanie do Groq AI (Llama 3.3)...")
+        
+        # Ogranicz dokument do 50k znaków (Groq ma limity)
+        doc_excerpt = document_text[:50000]
         
         # Przygotuj prompt
         prompt = f"""Jesteś ekspertem analizy finansowej specjalizującym się w raportach SEC i ocenie wyników kwartalnych spółek giełdowych.
@@ -259,7 +259,7 @@ KONTEKST RYNKOWY:
 {json.dumps(yahoo_data, indent=2) if yahoo_data else "Brak danych Yahoo Finance"}
 
 DOKUMENT 8-K:
-{document_text[:50000]}
+{doc_excerpt}
 
 WYKONAJ PEŁNĄ ANALIZĘ w formacie:
 
@@ -301,41 +301,57 @@ WYKONAJ PEŁNĄ ANALIZĘ w formacie:
 
 **CONFIDENCE LEVEL:** [X/10]
 
-Bądź konkretny i używaj liczb z dokumentu."""
+Bądź konkretny i używaj liczb z dokumentu. Odpowiedz TYLKO w tym formacie, bez dodatkowego tekstu."""
 
-        # Wywołaj Gemini API
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+        # ✅ Wywołaj Groq API
+        url = "https://api.groq.com/openai/v1/chat/completions"
         
-        payload = {
-            "contents": [{
-                "parts": [{"text": prompt}]
-            }],
-            "generationConfig": {
-                "temperature": 0.4,
-                "maxOutputTokens": 2048
-            }
+        headers = {
+            "Authorization": f"Bearer {GROQ_API_KEY}",
+            "Content-Type": "application/json"
         }
         
-        response = requests.post(url, json=payload, timeout=45)
+        payload = {
+            "model": "llama-3.3-70b-versatile",  # ✅ Model Groq
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "Jesteś ekspertem analizy finansowej SEC. Odpowiadaj w formacie strukturalnym bez dodatkowego tekstu."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.3,
+            "max_tokens": 2048
+        }
+        
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
         response.raise_for_status()
         
         result = response.json()
         
         # Wyciągnij tekst z odpowiedzi
-        if 'candidates' in result and len(result['candidates']) > 0:
-            analysis_text = result['candidates'][0]['content']['parts'][0]['text']
-            print(f"   → Otrzymano analizę AI ({len(analysis_text)} znaków)")
+        if 'choices' in result and len(result['choices']) > 0:
+            analysis_text = result['choices'][0]['message']['content']
+            print(f"   ✓ Otrzymano analizę AI ({len(analysis_text)} znaków)")
             return {'analysis': analysis_text, 'raw_response': result}
         else:
-            print("   → Gemini nie zwrócił analizy")
+            print("   → Groq nie zwrócił analizy")
             return None
             
+    except requests.exceptions.HTTPError as e:
+        print(f"   ✗ Groq API error: {e}")
+        if hasattr(e.response, 'text'):
+            print(f"   Response: {e.response.text[:200]}")
+        return None
     except Exception as e:
-        print(f"   → Błąd Gemini API: {e}")
+        print(f"   ✗ Błąd Groq API: {e}")
         return None
 
 # ============================================
-# FUNKCJE SEC (bez zmian - Twoje oryginalne)
+# FUNKCJE SEC
 # ============================================
 
 def get_recent_filings(cik: str, ticker: str) -> List[Dict]:
@@ -396,7 +412,6 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
         
         found_keywords = [kw for kw in KEYWORDS if kw in content_lower]
         
-        # Importance score bazuje na najwyzszym impact score + keywords
         importance_score = max_impact + len(found_keywords)
         
         return {
@@ -420,7 +435,7 @@ def analyze_8k_content(accession_number: str, ticker: str) -> Dict:
         }
 
 # ============================================
-# FUNKCJE DISCORD (Twoje oryginalne + nowa)
+# FUNKCJE DISCORD
 # ============================================
 
 def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
@@ -454,7 +469,7 @@ def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
     return {'sentiment': sentiment, 'color': color, 'interpretation': interpretation}
 
 def send_discord_alert(filing: Dict, analysis: Dict):
-    """ORYGINALNA FUNKCJA - POZOSTAJE BEZ ZMIAN!"""
+    """ORYGINALNA FUNKCJA - Kanał #1"""
     if not DISCORD_WEBHOOK_URL:
         print("Brak DISCORD_WEBHOOK_URL")
         return
@@ -478,7 +493,6 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     sentiment_data = analyze_sentiment(analysis, ticker)
     tradingview_link = f"https://www.tradingview.com/chart/?symbol={ticker}"
     
-    # Priority based on max impact score
     max_impact = analysis.get('max_impact', 0)
     if max_impact >= 9:
         priority = "🔴 BARDZO WAZNE"
@@ -503,20 +517,18 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     else:
         related_text = "Brak bezposrednich powiazan"
     
-    # Format items with impact scores and emoji indicators
     if analysis['items']:
         items_list = []
         for item in analysis['items']:
             impact = item['impact']
-            # Emoji based on impact score
             if impact >= 9:
-                emoji = "🔴"  # Critical
+                emoji = "🔴"
             elif impact >= 7:
-                emoji = "🟠"  # High
+                emoji = "🟠"
             elif impact >= 5:
-                emoji = "🟡"  # Medium
+                emoji = "🟡"
             else:
-                emoji = "🟢"  # Low
+                emoji = "🟢"
             
             items_list.append(f"{emoji} Item {item['code']} - {item['description']} (Impact: {impact}/10)")
         items_text = "\n".join(items_list)
@@ -561,31 +573,39 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     except Exception as e:
         print(f"✗ Error sending alert to Channel #1: {e}")
 
-def send_ai_analysis_alert(filing: Dict, gemini_analysis: Dict):
-    """NOWA FUNKCJA - tylko dla kanału #2"""
+def send_ai_analysis_alert(filing: Dict, groq_analysis: Dict):
+    """✅ ZMIENIONE - Kanał #2 (Groq zamiast Gemini)"""
     if not DISCORD_WEBHOOK_AI:
         print("   → Brak DISCORD_WEBHOOK_AI - pomijam wysyłkę AI")
         return
     
-    if not gemini_analysis or 'analysis' not in gemini_analysis:
-        print("   → Brak analizy Gemini - pomijam wysyłkę AI")
+    if not groq_analysis or 'analysis' not in groq_analysis:
+        print("   → Brak analizy Groq - pomijam wysyłkę AI")
         return
     
     ticker = filing['ticker']
     company = filing['company']
     
-    # Format jak w przykładzie Google
-    analysis_text = gemini_analysis['analysis']
+    analysis_text = groq_analysis['analysis']
     
     # Discord ma limit 2000 znaków na embed description
-    # Podziel na wiele pól jeśli potrzeba
+    # Jeśli analiza jest dłuższa, podziel na pola
+    if len(analysis_text) > 1800:
+        description = analysis_text[:1800] + "..."
+        # Reszta w osobnym polu
+        remaining = analysis_text[1800:]
+        fields = [{"name": "Kontynuacja analizy", "value": remaining[:1000], "inline": False}]
+    else:
+        description = analysis_text
+        fields = []
     
     embed = {
         "title": f"🤖 PEŁNA ANALIZA AI - {company} ({ticker})",
-        "description": analysis_text[:1800],  # Pierwsze 1800 znaków
-        "color": 5814783,  # Niebieski kolor
+        "description": description,
+        "color": 5814783,  # Niebieski
+        "fields": fields,
         "footer": {
-            "text": f"SEC AI Analyst v2.0 | Powered by Gemini | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            "text": f"SEC AI Analyst v2.0 | Powered by Groq (Llama 3.3) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         }
     }
     
@@ -631,7 +651,7 @@ def check_new_filings():
             analysis = analyze_8k_content(filing['accessionNumber'], ticker)
             
             if analysis['items']:
-                # KROK 1: Wyślij zwykły alert (kanał #1) - Twoja oryginalna funkcja
+                # KROK 1: Wyślij zwykły alert (kanał #1)
                 send_discord_alert(filing, analysis)
                 new_filings_count += 1
                 
@@ -639,9 +659,9 @@ def check_new_filings():
                 yahoo_data = get_yahoo_finance_data(ticker)
                 time.sleep(1)  # Rate limiting
                 
-                # KROK 3: Analiza AI z Gemini
+                # KROK 3: Analiza AI z Groq
                 if analysis.get('full_document'):
-                    gemini_analysis = analyze_with_gemini(
+                    groq_analysis = analyze_with_groq(
                         analysis['full_document'],
                         ticker,
                         filing['company'],
@@ -649,8 +669,8 @@ def check_new_filings():
                     )
                     
                     # KROK 4: Wyślij AI analysis (kanał #2)
-                    if gemini_analysis:
-                        send_ai_analysis_alert(filing, gemini_analysis)
+                    if groq_analysis:
+                        send_ai_analysis_alert(filing, groq_analysis)
                         ai_analysis_count += 1
                         time.sleep(2)  # Rate limiting
             else:
@@ -670,11 +690,11 @@ def check_new_filings():
 
 def main():
     print("\n" + "="*60)
-    print("SEC 8-K Monitor v2.0 - EXTENDED + AI")
+    print("SEC 8-K Monitor v2.0 - EXTENDED + AI (Groq)")
     print("="*60)
     print(f"Companies monitored: {len(COMPANIES)}")
     print(f"Gist storage: {'✓ ENABLED' if GIST_TOKEN and GIST_ID else '✗ DISABLED'}")
-    print(f"AI Analysis: {'✓ ENABLED' if GEMINI_API_KEY else '✗ DISABLED'}")
+    print(f"AI Analysis: {'✓ ENABLED (Groq Llama 3.3)' if GROQ_API_KEY else '✗ DISABLED'}")
     print("="*60)
     
     if not DISCORD_WEBHOOK_URL:
