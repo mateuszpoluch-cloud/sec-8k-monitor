@@ -8,17 +8,18 @@ import json
 from datetime import datetime, timedelta
 import os
 import time
+import re
 from typing import List, Dict, Set
 
 # ============================================
 # KONFIGURACJA
 # ============================================
 
-DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '').strip()  # Kanal #1 (pozostaje bez zmian)
-DISCORD_WEBHOOK_AI = os.environ.get('DISCORD_WEBHOOK_AI', '').strip()   # Kanal #2 (NOWY - AI analizy)
+DISCORD_WEBHOOK_URL = os.environ.get('DISCORD_WEBHOOK_URL', '').strip()
+DISCORD_WEBHOOK_AI = os.environ.get('DISCORD_WEBHOOK_AI', '').strip()
 GIST_TOKEN = os.environ.get('GIST_TOKEN', '').strip()
 GIST_ID = os.environ.get('GIST_ID', '').strip()
-GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '').strip()  # ✅ ZMIENIONE z GEMINI na GROQ
+GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '').strip()
 USER_AGENT = "SEC-Monitor/2.0 (your-email@example.com)"
 
 # ============================================
@@ -121,18 +122,17 @@ IMPORTANT_ITEMS = {
     '8.01': 'Inne istotne wydarzenia'
 }
 
-# Impact Score - waga waznosci kazdego Item (1-10)
 IMPACT_SCORE = {
-    '2.02': 10,  # Earnings - NAJWAZNIEJSZE
-    '1.01': 9,   # M&A/Acquisitions - duzy impact
-    '4.02': 9,   # Restatement - czesto niedoceniany, bardzo cenotwórczy
-    '5.02': 8,   # Zmiany w zarzadzie (CEO/CFO) - natychmiastowa reakcja
-    '2.05': 7,   # Restrukturyzacja - pozytywny przy oszczednosciach
-    '8.01': 7,   # Inne istotne - zalezy od tresci
-    '3.03': 6,   # Stock split - katalizator po wzrostach
-    '1.02': 5,   # Zakup/Sprzedaz aktywow
-    '2.03': 5,   # Zobowiazania
-    '7.01': 5,   # Regulacje
+    '2.02': 10,
+    '1.01': 9,
+    '4.02': 9,
+    '5.02': 8,
+    '2.05': 7,
+    '8.01': 7,
+    '3.03': 6,
+    '1.02': 5,
+    '2.03': 5,
+    '7.01': 5,
 }
 
 KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'collaboration', 
@@ -224,9 +224,6 @@ def get_yahoo_finance_data(ticker: str) -> Dict:
         
         print(f"   → Pobieranie danych Yahoo Finance dla {ticker}...")
         
-        # W produkcji: import yfinance as yf; stock = yf.Ticker(ticker)
-        # Dla demo zwracamy podstawową strukturę
-        
         return yahoo_data
         
     except Exception as e:
@@ -234,32 +231,108 @@ def get_yahoo_finance_data(ticker: str) -> Dict:
         return {}
 
 # ============================================
-# ✅ GROQ AI INTEGRATION (ZMIENIONE Z GEMINI)
+# ✅ EKSTRAKCJA KLUCZOWYCH SEKCJI Z 8-K
 # ============================================
 
-def analyze_with_groq(document_text: str, ticker: str, company: str, yahoo_data: Dict) -> Dict:
-    """Analizuje dokument 8-K używając Groq AI (Llama 3.3 70B)"""
+def extract_key_sections(document_text: str, detected_items: List[Dict]) -> str:
+    """
+    Wyciąga najważniejsze sekcje z dokumentu 8-K:
+    - Items (2.02, 1.01, etc.)
+    - Tabele z liczbami
+    - Kluczowe fragmenty z guidance/outlook
+    """
+    doc_lower = document_text.lower()
+    sections = []
+    
+    # 1. Wyciągnij sekcje Items
+    for item in detected_items:
+        item_code = item['code']
+        item_marker = f"item {item_code}"
+        
+        if item_marker in doc_lower:
+            start_idx = doc_lower.find(item_marker)
+            # Weź 3000 znaków od tego miejsca
+            section = document_text[start_idx:start_idx+3000]
+            sections.append(f"\n=== ITEM {item_code}: {item['description']} ===\n{section}")
+    
+    # 2. Szukaj tabel finansowych (GAAP, Non-GAAP, Revenue, EPS)
+    financial_keywords = [
+        'revenue', 'net income', 'earnings per share', 'eps', 'gaap', 'non-gaap',
+        'operating income', 'gross profit', 'guidance', 'outlook', 'forecast'
+    ]
+    
+    for keyword in financial_keywords:
+        if keyword in doc_lower:
+            idx = doc_lower.find(keyword)
+            # Weź kontekst wokół słowa kluczowego
+            start = max(0, idx - 500)
+            end = min(len(document_text), idx + 1500)
+            snippet = document_text[start:end]
+            sections.append(f"\n=== FRAGMENT: {keyword.upper()} ===\n{snippet}")
+    
+    # 3. Wyciągnij liczby (revenue, EPS, margins)
+    numbers_section = extract_financial_numbers(document_text)
+    if numbers_section:
+        sections.append(f"\n=== KLUCZOWE LICZBY ===\n{numbers_section}")
+    
+    # Połącz wszystkie sekcje i ogranicz do 12000 znaków
+    combined = "\n".join(sections)
+    
+    if len(combined) > 12000:
+        combined = combined[:12000]
+    
+    return combined if combined else document_text[:12000]
+
+def extract_financial_numbers(text: str) -> str:
+    """Wyciąga kluczowe liczby finansowe z dokumentu"""
+    lines = text.split('\n')
+    relevant_lines = []
+    
+    # Szukaj linii z liczbami i kluczowymi słowami
+    patterns = [
+        r'\$[\d,]+\.?\d*\s*(million|billion|thousand)?',
+        r'(revenue|earnings|eps|income|profit|margin).*\$?[\d,]+\.?\d*',
+        r'[\d,]+\.?\d*%',
+        r'(q[1-4]|quarter|fy|fiscal year).*[\d,]+',
+    ]
+    
+    for line in lines:
+        line_lower = line.lower()
+        if any(re.search(pattern, line_lower) for pattern in patterns):
+            if any(kw in line_lower for kw in ['revenue', 'eps', 'income', 'guidance', 'outlook', 'margin']):
+                relevant_lines.append(line.strip())
+    
+    return "\n".join(relevant_lines[:30])  # Max 30 linii
+
+# ============================================
+# ✅ GROQ AI INTEGRATION (ZOPTYMALIZOWANE)
+# ============================================
+
+def analyze_with_groq(document_text: str, ticker: str, company: str, yahoo_data: Dict, detected_items: List[Dict]) -> Dict:
+    """Analizuje dokument 8-K używając Groq AI (Llama 3.3 70B) - TYLKO KLUCZOWE SEKCJE"""
     
     if not GROQ_API_KEY:
         print("   → Brak GROQ_API_KEY - pomijam analizę AI")
         return None
     
     try:
-        print(f"   → Wysyłanie do Groq AI (Llama 3.3)...")
+        print(f"   → Przygotowanie kluczowych sekcji dla Groq...")
         
-        # Ogranicz dokument do 50k znaków (Groq ma limity)
-        doc_excerpt = document_text[:50000]
+        # ✅ Wyciągnij TYLKO najważniejsze fragmenty
+        key_sections = extract_key_sections(document_text, detected_items)
+        
+        print(f"   → Długość fragmentu: {len(key_sections)} znaków")
         
         # Przygotuj prompt
         prompt = f"""Jesteś ekspertem analizy finansowej specjalizującym się w raportach SEC i ocenie wyników kwartalnych spółek giełdowych.
 
-Otrzymujesz pełny tekst raportu 8-K dla spółki {company} (Ticker: {ticker}).
+Otrzymujesz KLUCZOWE FRAGMENTY raportu 8-K dla spółki {company} (Ticker: {ticker}).
 
 KONTEKST RYNKOWY:
 {json.dumps(yahoo_data, indent=2) if yahoo_data else "Brak danych Yahoo Finance"}
 
-DOKUMENT 8-K:
-{doc_excerpt}
+KLUCZOWE SEKCJE DOKUMENTU 8-K:
+{key_sections}
 
 WYKONAJ PEŁNĄ ANALIZĘ w formacie:
 
@@ -312,7 +385,7 @@ Bądź konkretny i używaj liczb z dokumentu. Odpowiedz TYLKO w tym formacie, be
         }
         
         payload = {
-            "model": "llama-3.3-70b-versatile",  # ✅ Model Groq
+            "model": "llama-3.3-70b-versatile",
             "messages": [
                 {
                     "role": "system",
@@ -327,12 +400,12 @@ Bądź konkretny i używaj liczb z dokumentu. Odpowiedz TYLKO w tym formacie, be
             "max_tokens": 2048
         }
         
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        print(f"   → Wysyłanie do Groq AI...")
+        response = requests.post(url, headers=headers, json=payload, timeout=90)
         response.raise_for_status()
         
         result = response.json()
         
-        # Wyciągnij tekst z odpowiedzi
         if 'choices' in result and len(result['choices']) > 0:
             analysis_text = result['choices'][0]['message']['content']
             print(f"   ✓ Otrzymano analizę AI ({len(analysis_text)} znaków)")
@@ -344,7 +417,7 @@ Bądź konkretny i używaj liczb z dokumentu. Odpowiedz TYLKO w tym formacie, be
     except requests.exceptions.HTTPError as e:
         print(f"   ✗ Groq API error: {e}")
         if hasattr(e.response, 'text'):
-            print(f"   Response: {e.response.text[:200]}")
+            print(f"   Response: {e.response.text[:500]}")
         return None
     except Exception as e:
         print(f"   ✗ Błąd Groq API: {e}")
@@ -589,10 +662,8 @@ def send_ai_analysis_alert(filing: Dict, groq_analysis: Dict):
     analysis_text = groq_analysis['analysis']
     
     # Discord ma limit 2000 znaków na embed description
-    # Jeśli analiza jest dłuższa, podziel na pola
     if len(analysis_text) > 1800:
         description = analysis_text[:1800] + "..."
-        # Reszta w osobnym polu
         remaining = analysis_text[1800:]
         fields = [{"name": "Kontynuacja analizy", "value": remaining[:1000], "inline": False}]
     else:
@@ -602,7 +673,7 @@ def send_ai_analysis_alert(filing: Dict, groq_analysis: Dict):
     embed = {
         "title": f"🤖 PEŁNA ANALIZA AI - {company} ({ticker})",
         "description": description,
-        "color": 5814783,  # Niebieski
+        "color": 5814783,
         "fields": fields,
         "footer": {
             "text": f"SEC AI Analyst v2.0 | Powered by Groq (Llama 3.3) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
@@ -657,22 +728,23 @@ def check_new_filings():
                 
                 # KROK 2: Pobierz dane Yahoo Finance
                 yahoo_data = get_yahoo_finance_data(ticker)
-                time.sleep(1)  # Rate limiting
+                time.sleep(1)
                 
-                # KROK 3: Analiza AI z Groq
+                # KROK 3: Analiza AI z Groq (TYLKO KLUCZOWE SEKCJE)
                 if analysis.get('full_document'):
                     groq_analysis = analyze_with_groq(
                         analysis['full_document'],
                         ticker,
                         filing['company'],
-                        yahoo_data
+                        yahoo_data,
+                        analysis['items']  # ✅ Przekaż wykryte Items
                     )
                     
                     # KROK 4: Wyślij AI analysis (kanał #2)
                     if groq_analysis:
                         send_ai_analysis_alert(filing, groq_analysis)
                         ai_analysis_count += 1
-                        time.sleep(2)  # Rate limiting
+                        time.sleep(2)
             else:
                 print(f"   ↳ Pominieto (brak istotnych Items)")
             
