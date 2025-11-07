@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-SEC 8-K Monitor v2.0 - EXTENDED + AI (Groq)
+SEC 8-K Monitor v2.1 - MULTI-ITEM ANALYSIS + AI (Groq)
+- Dedykowane prompty dla każdego Item type
+- Analiza kombinacji multiple Items
+- Combined verdict uwzględniający interakcje między Items
 """
 
 import requests
@@ -20,7 +23,7 @@ DISCORD_WEBHOOK_AI = os.environ.get('DISCORD_WEBHOOK_AI', '').strip()
 GIST_TOKEN = os.environ.get('GIST_TOKEN', '').strip()
 GIST_ID = os.environ.get('GIST_ID', '').strip()
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '').strip()
-USER_AGENT = "SEC-Monitor/2.0 (your-email@example.com)"
+USER_AGENT = "SEC-Monitor/2.1 (your-email@example.com)"
 
 # ============================================
 # LISTA SPOLEK (51 spolek)
@@ -140,6 +143,162 @@ KEYWORDS = ['acquisition', 'merger', 'partnership', 'agreement', 'contract', 'co
             'revenue', 'earnings', 'guidance', 'quantum', 'cloud', 'datacenter', 'biotech']
 
 # ============================================
+# ✅ ITEM-SPECIFIC PROMPTS FOR GROQ
+# ============================================
+
+ITEM_PROMPTS = {
+    '2.02': {  # EARNINGS
+        'focus': 'wyniki finansowe, beat/meet/miss, guidance',
+        'questions': """
+- EPS: actual vs consensus vs prior quarter (beat by X%?)
+- Revenue: actual vs consensus vs YoY growth
+- Guidance: raised/lowered/maintained?
+- Margins: gross/operating/net margins trend
+- Key growth metrics and KPIs
+- Free Cash Flow generation
+- Management outlook and tone
+"""
+    },
+    
+    '1.01': {  # ACQUISITION/MERGER
+        'focus': 'przejęcia, fuzje, akwizycje',
+        'questions': """
+- Target company & acquisition price
+- Strategic fit (does it make sense?)
+- Expected synergies (cost savings + revenue growth)
+- Accretive or dilutive to EPS?
+- Expected closing date
+- Financing structure (cash/stock/debt)
+- Market reaction likely?
+"""
+    },
+    
+    '5.02': {  # EXECUTIVE CHANGES
+        'focus': 'zmiany w zarządzie, CEO, CFO',
+        'questions': """
+- Who's leaving/joining and which position?
+- Reason for departure (retirement/resignation/fired?)
+- New executive's track record and experience
+- Timing - why now? (red flag or planned succession?)
+- Impact on company strategy
+- Market typically reacts how to such changes?
+"""
+    },
+    
+    '1.02': {  # ASSET PURCHASE/SALE
+        'focus': 'zakup/sprzedaż aktywów',
+        'questions': """
+- What asset was bought/sold?
+- Transaction price and terms
+- Strategic rationale (expansion/divestiture/optimization?)
+- Impact on balance sheet (leverage, cash position)
+- Multiple paid (reasonable valuation?)
+"""
+    },
+    
+    '2.05': {  # RESTRUCTURING
+        'focus': 'restrukturyzacja, koszty',
+        'questions': """
+- Total restructuring costs (one-time charges)
+- Expected annual savings once complete
+- Layoffs - how many people affected?
+- Timeline - when will savings materialize?
+- Is this a red flag (company in trouble) or proactive move?
+"""
+    },
+    
+    '4.02': {  # RESTATEMENT
+        'focus': 'korekta wyników finansowych - RED FLAG!',
+        'questions': """
+⚠️ RESTATEMENT IS SERIOUS - USUALLY MAJOR RED FLAG!
+
+- Which periods are being restated?
+- Magnitude of the error (material or minor?)
+- Reason: accounting error, fraud, or rule change?
+- Impact on investor trust and credibility
+- Potential legal/SEC investigation consequences
+"""
+    },
+    
+    '2.03': {  # MATERIAL OBLIGATIONS
+        'focus': 'nowe zobowiązania finansowe, dług, obligacje',
+        'questions': """
+- Type of obligation (bonds, credit facility, loan)
+- Amount and terms (interest rate, maturity date)
+- Purpose - what will they finance with this capital?
+- Impact on leverage (new debt/equity ratio)
+- Credit rating implications
+- Restrictive covenants?
+"""
+    },
+    
+    '3.03': {  # STOCK SPLIT
+        'focus': 'split akcji',
+        'questions': """
+- Split ratio (2-for-1, 3-for-1, etc.)
+- Reason: stock price too high? Increase liquidity?
+- Historical impact of splits in this sector
+- Sentiment - usually positive signal
+- Timing - why now?
+"""
+    },
+    
+    '7.01': {  # SEC REGULATIONS
+        'focus': 'regulacje SEC, compliance',
+        'questions': """
+- What regulation was introduced/updated?
+- Impact on financial reporting or operations
+- Compliance costs (material or minor?)
+- Implementation timeline
+- Company-specific or industry-wide issue?
+"""
+    },
+    
+    '8.01': {  # OTHER MATERIAL EVENTS
+        'focus': 'inne istotne wydarzenia',
+        'questions': """
+- What event occurred?
+- Why is it considered material?
+- Impact on business (short-term and long-term)
+- Potential financial implications
+"""
+    },
+}
+
+# ============================================
+# ✅ ITEM INTERACTION EXAMPLES
+# ============================================
+
+ITEM_INTERACTION_EXAMPLES = """
+PRZYKŁADY INTERAKCJI MIĘDZY ITEMS:
+
+1. Earnings BEAT + CEO Departure = MIXED/BEARISH
+   → Pozytywne wyniki, ale niepewność przywództwa przeważa
+
+2. Earnings BEAT + Acquisition = STRONG BULLISH
+   → Wzrost organiczny + strategiczne przejęcie = momentum
+
+3. Earnings MISS + Restructuring = MOŻE BYĆ POZYTYWNE
+   → Zarząd reaguje na problemy, obniża koszty = future improvement
+
+4. Good Earnings + Restatement = STRONG BEARISH 🔴
+   → Nawet dobre wyniki NIE RATUJĄ - zaufanie zniszczone!
+
+5. Earnings + Stock Split = BULLISH
+   → Już dobre wyniki + split = increased accessibility
+
+6. Acquisition + New Debt = NEUTRAL TO BEARISH
+   → Zależy od ceny przejęcia i poziomu zadłużenia
+
+7. CEO Change + Restructuring = RED FLAG
+   → Zwykle oznacza poważne problemy w firmie
+
+8. Earnings + New Regulations = DEPENDS
+   → Jeśli regulation industry-wide = neutral
+   → Jeśli tylko ta firma = potential red flag
+"""
+
+# ============================================
 # FUNKCJE GIST
 # ============================================
 
@@ -211,24 +370,229 @@ def save_processed_filings_to_gist(processed: Set[str]):
 # YAHOO FINANCE INTEGRATION
 # ============================================
 
-def get_yahoo_finance_data(ticker: str) -> Dict:
-    """Pobiera dane z Yahoo Finance: konsensus EPS, revenue, target price"""
-    try:
-        yahoo_data = {
-            'consensus_eps': None,
-            'consensus_revenue': None,
-            'target_price': None,
-            'analyst_ratings': {'buy': 0, 'hold': 0, 'sell': 0},
-            'previous_quarter': {}
+def get_yahoo_finance_mock_data(ticker: str) -> Dict:
+    """Mock data for development/testing when Yahoo Finance is unavailable"""
+    
+    # Mock data based on ticker (realistic values for context)
+    mock_data = {
+        'NVDA': {
+            'current_price': 145.20,
+            'market_cap': 3.57e12,
+            'consensus_eps': 2.85,
+            'target_price': 165.00,
+            'target_high': 200.00,
+            'target_low': 120.00,
+            'num_analysts': 48,
+            'pe_ratio': 51.0,
+            'forward_pe': 35.2,
+        },
+        'MSFT': {
+            'current_price': 415.30,
+            'market_cap': 3.09e12,
+            'consensus_eps': 12.45,
+            'target_price': 450.00,
+            'num_analysts': 52,
+            'pe_ratio': 33.4,
+        },
+        # Default for other tickers
+        'DEFAULT': {
+            'current_price': 50.00,
+            'market_cap': 10e9,
+            'consensus_eps': 2.00,
+            'target_price': 55.00,
+            'num_analysts': 15,
+            'pe_ratio': 25.0,
         }
+    }
+    
+    data = mock_data.get(ticker, mock_data['DEFAULT']).copy()
+    
+    formatted = f"""=== YAHOO FINANCE DATA (MOCK) ===
+
+Current Price: ${data.get('current_price', 0):.2f}
+Market Cap: ${data.get('market_cap', 0)/1e9:.2f}B
+P/E Ratio: {data.get('pe_ratio', 0):.2f}
+Forward P/E: {data.get('forward_pe', 0):.2f}
+
+--- ANALYST CONSENSUS ---
+Expected EPS (forward): ${data.get('consensus_eps', 0):.2f}
+Number of Analysts: {data.get('num_analysts', 0)}
+Target Price (mean): ${data.get('target_price', 0):.2f}
+Target Range: ${data.get('target_low', 0):.2f} - ${data.get('target_high', 0):.2f}
+
+Note: Using mock data - Yahoo Finance unavailable in this environment"""
+    
+    return {'raw': data, 'formatted': formatted}
+
+def get_yahoo_finance_data(ticker: str) -> Dict:
+    """Pobiera dane z Yahoo Finance: konsensus EPS, revenue, target price, previous quarter"""
+    try:
+        import yfinance as yf
         
         print(f"   → Pobieranie danych Yahoo Finance dla {ticker}...")
         
-        return yahoo_data
+        stock = yf.Ticker(ticker)
         
+        # Inicjalizuj strukturę danych
+        yahoo_data = {
+            'current_price': None,
+            'market_cap': None,
+            'consensus_eps': None,
+            'consensus_revenue': None,
+            'target_price': None,
+            'target_high': None,
+            'target_low': None,
+            'analyst_ratings': {'strong_buy': 0, 'buy': 0, 'hold': 0, 'sell': 0, 'strong_sell': 0},
+            'previous_quarter': {},
+            'pe_ratio': None,
+            'forward_pe': None,
+            '52week_high': None,
+            '52week_low': None,
+            'beta': None
+        }
+        
+        # ✅ 1. BASIC INFO
+        info = stock.info
+        
+        yahoo_data['current_price'] = info.get('currentPrice') or info.get('regularMarketPrice')
+        yahoo_data['market_cap'] = info.get('marketCap')
+        yahoo_data['pe_ratio'] = info.get('trailingPE')
+        yahoo_data['forward_pe'] = info.get('forwardPE')
+        yahoo_data['52week_high'] = info.get('fiftyTwoWeekHigh')
+        yahoo_data['52week_low'] = info.get('fiftyTwoWeekLow')
+        yahoo_data['beta'] = info.get('beta')
+        
+        # ✅ 2. ANALYST ESTIMATES (Forward Looking)
+        yahoo_data['consensus_eps'] = info.get('forwardEps')
+        yahoo_data['consensus_revenue'] = info.get('revenueEstimate')
+        
+        # ✅ 3. PRICE TARGETS
+        yahoo_data['target_price'] = info.get('targetMeanPrice')
+        yahoo_data['target_high'] = info.get('targetHighPrice')
+        yahoo_data['target_low'] = info.get('targetLowPrice')
+        
+        # ✅ 4. ANALYST RECOMMENDATIONS
+        recommendations = info.get('recommendationKey')
+        yahoo_data['recommendation_key'] = recommendations
+        
+        # Detailed ratings breakdown
+        num_analysts = info.get('numberOfAnalystOpinions', 0)
+        yahoo_data['num_analysts'] = num_analysts
+        
+        # Rating distribution (if available)
+        yahoo_data['analyst_ratings']['strong_buy'] = info.get('recommendationMean', 0)  # 1.0 = Strong Buy, 5.0 = Strong Sell
+        
+        # ✅ 5. PREVIOUS QUARTER DATA (trailing)
+        financials = stock.quarterly_financials
+        
+        if not financials.empty and len(financials.columns) > 0:
+            # Ostatni kwartał (most recent)
+            latest_quarter = financials.columns[0]
+            
+            try:
+                total_revenue = financials.loc['Total Revenue', latest_quarter] if 'Total Revenue' in financials.index else None
+                net_income = financials.loc['Net Income', latest_quarter] if 'Net Income' in financials.index else None
+                
+                yahoo_data['previous_quarter'] = {
+                    'date': str(latest_quarter.date()) if hasattr(latest_quarter, 'date') else str(latest_quarter),
+                    'revenue': float(total_revenue) if total_revenue is not None else None,
+                    'net_income': float(net_income) if net_income is not None else None,
+                }
+            except Exception as e:
+                print(f"   → Błąd parsowania financials: {e}")
+        
+        # ✅ 6. EARNINGS DATES
+        earnings_dates = stock.get_earnings_dates(limit=2)
+        if earnings_dates is not None and not earnings_dates.empty:
+            # Najbliższa data earnings
+            next_earnings = earnings_dates.index[0]
+            yahoo_data['next_earnings_date'] = str(next_earnings.date()) if hasattr(next_earnings, 'date') else str(next_earnings)
+        
+        # ✅ 7. FORMATOWANIE DLA GROQ (czytelny string)
+        formatted_data = format_yahoo_data_for_display(yahoo_data)
+        
+        print(f"   ✓ Yahoo Finance data retrieved for {ticker}")
+        print(f"      • Current price: ${yahoo_data['current_price']}")
+        print(f"      • Target price: ${yahoo_data['target_price']}")
+        print(f"      • Analysts: {yahoo_data['num_analysts']}")
+        
+        return {'raw': yahoo_data, 'formatted': formatted_data}
+        
+    except ImportError:
+        print(f"   ✗ yfinance not installed - using mock data")
+        return get_yahoo_finance_mock_data(ticker)
     except Exception as e:
-        print(f"   → Błąd Yahoo Finance dla {ticker}: {e}")
-        return {}
+        print(f"   ✗ Błąd Yahoo Finance dla {ticker}: {e}")
+        print(f"   → Fallback to mock data")
+        return get_yahoo_finance_mock_data(ticker)
+
+def format_yahoo_data_for_display(data: Dict) -> str:
+    """Formatuje dane Yahoo Finance do czytelnego stringa dla Groq"""
+    
+    lines = ["=== YAHOO FINANCE DATA ===\n"]
+    
+    # Current trading data
+    if data.get('current_price'):
+        lines.append(f"Current Price: ${data['current_price']:.2f}")
+    
+    if data.get('market_cap'):
+        market_cap_b = data['market_cap'] / 1e9
+        lines.append(f"Market Cap: ${market_cap_b:.2f}B")
+    
+    # Valuation metrics
+    if data.get('pe_ratio'):
+        lines.append(f"P/E Ratio: {data['pe_ratio']:.2f}")
+    
+    if data.get('forward_pe'):
+        lines.append(f"Forward P/E: {data['forward_pe']:.2f}")
+    
+    # 52-week range
+    if data.get('52week_high') and data.get('52week_low'):
+        lines.append(f"52-Week Range: ${data['52week_low']:.2f} - ${data['52week_high']:.2f}")
+    
+    lines.append("")  # Empty line
+    
+    # Analyst expectations
+    lines.append("--- ANALYST CONSENSUS ---")
+    
+    if data.get('consensus_eps'):
+        lines.append(f"Expected EPS (forward): ${data['consensus_eps']:.2f}")
+    
+    if data.get('num_analysts'):
+        lines.append(f"Number of Analysts: {data['num_analysts']}")
+    
+    # Price targets
+    if data.get('target_price'):
+        lines.append(f"Target Price (mean): ${data['target_price']:.2f}")
+        
+        if data.get('current_price'):
+            upside = ((data['target_price'] - data['current_price']) / data['current_price']) * 100
+            lines.append(f"Implied Upside: {upside:+.1f}%")
+    
+    if data.get('target_high') and data.get('target_low'):
+        lines.append(f"Target Range: ${data['target_low']:.2f} - ${data['target_high']:.2f}")
+    
+    # Previous quarter
+    if data.get('previous_quarter') and data['previous_quarter'].get('revenue'):
+        lines.append("")
+        lines.append("--- PREVIOUS QUARTER ---")
+        prev_q = data['previous_quarter']
+        lines.append(f"Date: {prev_q.get('date', 'N/A')}")
+        
+        if prev_q.get('revenue'):
+            revenue_m = prev_q['revenue'] / 1e6
+            lines.append(f"Revenue: ${revenue_m:.2f}M")
+        
+        if prev_q.get('net_income'):
+            income_m = prev_q['net_income'] / 1e6
+            lines.append(f"Net Income: ${income_m:.2f}M")
+    
+    # Next earnings date
+    if data.get('next_earnings_date'):
+        lines.append("")
+        lines.append(f"Next Earnings Date: {data['next_earnings_date']}")
+    
+    return "\n".join(lines)
 
 # ============================================
 # ✅ EKSTRAKCJA KLUCZOWYCH SEKCJI Z 8-K
@@ -305,76 +669,128 @@ def extract_financial_numbers(text: str) -> str:
     return "\n".join(relevant_lines[:30])  # Max 30 linii
 
 # ============================================
-# ✅ GROQ AI INTEGRATION (ZOPTYMALIZOWANE)
+# ✅ HELPER: GENERUJ PYTANIA DLA KAŻDEGO ITEM
 # ============================================
 
-def analyze_with_groq(document_text: str, ticker: str, company: str, yahoo_data: Dict, detected_items: List[Dict]) -> Dict:
-    """Analizuje dokument 8-K używając Groq AI (Llama 3.3 70B) - TYLKO KLUCZOWE SEKCJE"""
+def generate_item_specific_questions(sorted_items: List[Dict]) -> str:
+    """Generuje pytania specyficzne dla każdego wykrytego Item"""
+    questions_list = []
+    
+    for item in sorted_items:
+        item_code = item['code']
+        item_config = ITEM_PROMPTS.get(item_code)
+        
+        if item_config:
+            questions_list.append(f"### ITEM {item_code} - {item['description']}:\n{item_config['questions']}")
+        else:
+            questions_list.append(f"### ITEM {item_code} - {item['description']}:\n- What happened?\n- Why is it material?\n- Impact on business")
+    
+    return "\n".join(questions_list)
+
+# ============================================
+# ✅ GROQ AI INTEGRATION - MULTI-ITEM ANALYSIS
+# ============================================
+
+def analyze_with_groq(document_text: str, ticker: str, company: str, yahoo_data: str, detected_items: List[Dict]) -> Dict:
+    """Analizuje dokument 8-K używając Groq AI - MULTIPLE ITEMS + COMBINED VERDICT"""
     
     if not GROQ_API_KEY:
         print("   → Brak GROQ_API_KEY - pomijam analizę AI")
         return None
     
+    if not detected_items:
+        print("   → Brak wykrytych Items - pomijam Groq")
+        return None
+    
     try:
-        print(f"   → Przygotowanie kluczowych sekcji dla Groq...")
+        # ✅ SORTUJ ITEMS PO IMPACT (najważniejsze pierwsze)
+        sorted_items = sorted(detected_items, key=lambda x: x['impact'], reverse=True)
         
-        # ✅ Wyciągnij TYLKO najważniejsze fragmenty
+        print(f"   → Wykryto {len(sorted_items)} Items do analizy:")
+        for item in sorted_items:
+            print(f"      • Item {item['code']}: {item['description']} (Impact: {item['impact']}/10)")
+        
+        # ✅ PRZYGOTUJ SEKCJE DOKUMENTU
         key_sections = extract_key_sections(document_text, detected_items)
-        
         print(f"   → Długość fragmentu: {len(key_sections)} znaków")
         
-        # Przygotuj prompt
-        prompt = f"""Jesteś ekspertem analizy finansowej specjalizującym się w raportach SEC i ocenie wyników kwartalnych spółek giełdowych.
+        # ✅ ZBUDUJ MULTI-ITEM ANALYSIS PROMPT
+        items_description = "\n".join([
+            f"- Item {item['code']}: {item['description']} (Impact: {item['impact']}/10)"
+            for item in sorted_items
+        ])
+        
+        # ✅ Generuj pytania dla każdego Item
+        analysis_questions = generate_item_specific_questions(sorted_items)
+        
+        # ✅ GŁÓWNY PROMPT - MULTI-ITEM ANALYSIS
+        full_prompt = f"""Jesteś ekspertem analizy finansowej SEC z 20-letnim doświadczeniem. Analizujesz filing 8-K który zawiera WIELE równoczesnych wydarzeń.
 
-Otrzymujesz KLUCZOWE FRAGMENTY raportu 8-K dla spółki {company} (Ticker: {ticker}).
+SPÓŁKA: {company} (Ticker: {ticker})
+
+WYKRYTE ITEMS (od najważniejszego):
+{items_description}
 
 KONTEKST RYNKOWY:
-{json.dumps(yahoo_data, indent=2) if yahoo_data else "Brak danych Yahoo Finance"}
+{yahoo_data if yahoo_data else "Brak danych Yahoo Finance"}
 
-KLUCZOWE SEKCJE DOKUMENTU 8-K:
+KLUCZOWE SEKCJE DOKUMENTU:
 {key_sections}
 
-WYKONAJ PEŁNĄ ANALIZĘ w formacie:
+---
 
-**VERDICT:** [STRONG BEAT / BEAT / MEET / MISS / STRONG MISS]
+## CZĘŚĆ 1: ANALIZA KAŻDEGO ITEM OSOBNO
 
-**WAGA ZDARZENIA:** [1-10]
+{analysis_questions}
 
-**KIERUNEK CENY:** [BULLISH / BEARISH / NEUTRALNY]
+---
 
-**SIŁA RUCHU:** [X/10]
+## CZĘŚĆ 2: COMBINED VERDICT (NAJWAŻNIEJSZE!)
 
-**POTENCJALNY RUCH:**
-- Pre-market/AH: [+/-X%]
-- 1-3 dni: [+/-X%]  
-- 1-2 tygodnie: [+/-X%]
+Teraz oceń ŁĄCZNY WPŁYW wszystkich Items na cenę akcji:
 
-**BEAT/MEET/MISS BREAKDOWN:**
-- EPS: [opis]
-- Revenue: [opis]
-- Guidance: [opis]
+**OVERALL VERDICT:** [STRONG BULLISH / BULLISH / MIXED / BEARISH / STRONG BEARISH]
 
-**KLUCZOWE DANE:**
-[Konkretne liczby z raportu]
+**FINALNE KIERUNEK CENY:** [BULLISH / BEARISH / NEUTRALNY]
+*WAŻNE: Uwzględnij WSZYSTKIE Items i ich interakcje. Np. dobre earnings mogą być zniwelowane przez odejście CEO lub restatement.*
 
-**ANALIZA MOMENTUM:**
-[Czy akceleracja? Trend]
+**POTENCJALNY RUCH AKCJI:**
+- Pre-market/After-hours: [+/-X% do +/-Y%]
+- 1-3 dni: [+/-X% do +/-Y%]
+- 1-2 tygodnie: [+/-X% do +/-Y%]
 
-**JAKOŚĆ WYNIKÓW:**
-[Organiczny wzrost? FCF? Marże?]
+**DOMINUJĄCY CZYNNIK:**
+[Który Item ma NAJWIĘKSZY wpływ na cenę? Dlaczego?]
+
+**INTERAKCJE MIĘDZY ITEMS:**
+[Jak te wydarzenia wpływają na siebie nawzajem? Czy się wzmacniają czy neutralizują?]
+
+{ITEM_INTERACTION_EXAMPLES}
+
+**GŁÓWNE RYZYKA:**
+1. [Największe zagrożenie wynikające z tych Items]
+2. [Drugie zagrożenie]
+3. [Trzecie zagrożenie]
+
+**MARKET PSYCHOLOGY:**
+[Jak rynek zinterpretuje tę KOMBINACJĘ wydarzeń? Co będzie górą - fear czy greed?]
+
+**CONFIDENCE LEVEL:** [1-10]
+*Uwaga: Niższy confidence jeśli Items są sprzeczne (np. beat + CEO departure)*
+
+---
+
+## CZĘŚĆ 3: KONKRETNE LICZBY (jeśli dostępne)
+
+**KLUCZOWE DANE Z DOKUMENTU:**
+[Wyciągnij KONKRETNE liczby: revenue, EPS, guidance, ceny przejęć, koszty, etc.]
 
 **TON ZARZĄDU:**
-[Optymistyczny/Ostrożny/Pesymistyczny + cytaty]
+[Optymistyczny/Neutralny/Ostrożny/Pesymistyczny - z cytatami jeśli są]
 
-**PRAWDOPODOBNA REAKCJA:**
-[Dlaczego rynek zareaguje tak a nie inaczej]
+---
 
-**RYZYKA:**
-[2-3 główne zagrożenia]
-
-**CONFIDENCE LEVEL:** [X/10]
-
-Bądź konkretny i używaj liczb z dokumentu. Odpowiedz TYLKO w tym formacie, bez dodatkowego tekstu."""
+UŻYWAJ KONKRETNYCH LICZB Z DOKUMENTU. Bądź bezpośredni i praktyczny. Nie bój się jednoznacznych werdyktów."""
 
         # ✅ Wywołaj Groq API
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -389,34 +805,39 @@ Bądź konkretny i używaj liczb z dokumentu. Odpowiedz TYLKO w tym formacie, be
             "messages": [
                 {
                     "role": "system",
-                    "content": "Jesteś ekspertem analizy finansowej SEC. Odpowiadaj w formacie strukturalnym bez dodatkowego tekstu."
+                    "content": "Jesteś ekspertem analizy SEC z 20-letnim doświadczeniem. Potrafisz ocenić jak KOMBINACJA różnych Items wpływa na cenę akcji. Twoje analizy są konkretne, używasz liczb i nie boisz się jednoznacznych werdyktów. Odpowiadasz w strukturalnym formacie."
                 },
                 {
                     "role": "user",
-                    "content": prompt
+                    "content": full_prompt
                 }
             ],
             "temperature": 0.3,
-            "max_tokens": 2048
+            "max_tokens": 3072  # ✅ Zwiększony limit dla multiple items
         }
         
-        print(f"   → Wysyłanie do Groq AI...")
-        response = requests.post(url, headers=headers, json=payload, timeout=90)
+        print(f"   → Wysyłanie do Groq AI (multiple items analysis)...")
+        response = requests.post(url, headers=headers, json=payload, timeout=120)
         response.raise_for_status()
         
         result = response.json()
         
         if 'choices' in result and len(result['choices']) > 0:
             analysis_text = result['choices'][0]['message']['content']
-            print(f"   ✓ Otrzymano analizę AI ({len(analysis_text)} znaków)")
-            return {'analysis': analysis_text, 'raw_response': result}
+            print(f"   ✓ Otrzymano multi-item analizę AI ({len(analysis_text)} znaków)")
+            return {
+                'analysis': analysis_text, 
+                'items_analyzed': [item['code'] for item in sorted_items],
+                'item_count': len(sorted_items),
+                'raw_response': result
+            }
         else:
             print("   → Groq nie zwrócił analizy")
             return None
             
     except requests.exceptions.HTTPError as e:
-        print(f"   ✗ Groq API error: {e}")
-        if hasattr(e.response, 'text'):
+        print(f"   ✗ Groq API HTTP error: {e}")
+        if hasattr(e, 'response') and hasattr(e.response, 'text'):
             print(f"   Response: {e.response.text[:500]}")
         return None
     except Exception as e:
@@ -542,7 +963,7 @@ def analyze_sentiment(analysis: Dict, ticker: str) -> Dict:
     return {'sentiment': sentiment, 'color': color, 'interpretation': interpretation}
 
 def send_discord_alert(filing: Dict, analysis: Dict):
-    """ORYGINALNA FUNKCJA - Kanał #1"""
+    """KANAŁ #1 - Podstawowy alert"""
     if not DISCORD_WEBHOOK_URL:
         print("Brak DISCORD_WEBHOOK_URL")
         return
@@ -610,14 +1031,6 @@ def send_discord_alert(filing: Dict, analysis: Dict):
     
     keywords_text = ", ".join(analysis['keywords']) if analysis['keywords'] else "Brak"
     
-    doc_data = analysis.get('document_excerpt', {})
-    if isinstance(doc_data, dict):
-        document_excerpt = doc_data.get('excerpt', 'Brak fragmentu')
-        key_numbers = doc_data.get('key_numbers', 'Brak danych')
-    else:
-        document_excerpt = str(doc_data)
-        key_numbers = 'Brak danych'
-    
     embed = {
         "title": f"{priority} - Nowy raport 8-K",
         "description": f"**{company} ({ticker})**\n*{company_desc}*\n\n{sentiment_data['sentiment']}\n*{sentiment_data['interpretation']}*",
@@ -630,11 +1043,9 @@ def send_discord_alert(filing: Dict, analysis: Dict):
             {"name": "Potencjalny wplyw na", "value": related_text, "inline": False},
             {"name": "Wykres", "value": f"[Otworz na TradingView]({tradingview_link})", "inline": True},
             {"name": "Dokument SEC", "value": f"[Otworz raport]({analysis['url']})", "inline": True},
-            {"name": "FRAGMENT DOKUMENTU (tlumaczenie)", "value": f"```{document_excerpt[:900]}```", "inline": False},
-            {"name": "KLUCZOWE DANE", "value": key_numbers, "inline": False},
             {"name": "Publikacja na SEC", "value": publication_time, "inline": False}
         ],
-        "footer": {"text": f"SEC EDGAR Monitor v2.0 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
+        "footer": {"text": f"SEC EDGAR Monitor v2.1 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
     }
     
     payload = {"embeds": [embed]}
@@ -647,7 +1058,7 @@ def send_discord_alert(filing: Dict, analysis: Dict):
         print(f"✗ Error sending alert to Channel #1: {e}")
 
 def send_ai_analysis_alert(filing: Dict, groq_analysis: Dict):
-    """✅ ZMIENIONE - Kanał #2 (Groq zamiast Gemini)"""
+    """✅ KANAŁ #2 - Multi-Item AI Analysis"""
     if not DISCORD_WEBHOOK_AI:
         print("   → Brak DISCORD_WEBHOOK_AI - pomijam wysyłkę AI")
         return
@@ -660,23 +1071,53 @@ def send_ai_analysis_alert(filing: Dict, groq_analysis: Dict):
     company = filing['company']
     
     analysis_text = groq_analysis['analysis']
+    items_analyzed = groq_analysis.get('items_analyzed', [])
+    item_count = groq_analysis.get('item_count', 0)
+    
+    # ✅ Emoji based on item count
+    if item_count >= 3:
+        title_emoji = "🔥"  # Complex situation
+    elif item_count == 2:
+        title_emoji = "⚡"  # Dual event
+    else:
+        title_emoji = "🤖"  # Single item
+    
+    # ✅ Lista Items w title
+    items_list = ", ".join([f"Item {code}" for code in items_analyzed])
     
     # Discord ma limit 2000 znaków na embed description
     if len(analysis_text) > 1800:
         description = analysis_text[:1800] + "..."
         remaining = analysis_text[1800:]
-        fields = [{"name": "Kontynuacja analizy", "value": remaining[:1000], "inline": False}]
+        
+        # Split długich analiz na multiple fields
+        fields = []
+        while remaining and len(fields) < 5:  # Max 5 dodatkowych fields
+            chunk = remaining[:1000]
+            remaining = remaining[1000:]
+            fields.append({
+                "name": f"Kontynuacja analizy (część {len(fields) + 1})",
+                "value": chunk,
+                "inline": False
+            })
     else:
         description = analysis_text
         fields = []
     
+    # ✅ Dodaj info o Items na początku
+    fields.insert(0, {
+        "name": "📊 Analyzed Items",
+        "value": items_list if items_list else "Brak Items",
+        "inline": False
+    })
+    
     embed = {
-        "title": f"🤖 PEŁNA ANALIZA AI - {company} ({ticker})",
+        "title": f"{title_emoji} MULTI-ITEM ANALYSIS - {company} ({ticker})",
         "description": description,
-        "color": 5814783,
+        "color": 5814783,  # Purple dla multi-item
         "fields": fields,
         "footer": {
-            "text": f"SEC AI Analyst v2.0 | Powered by Groq (Llama 3.3) | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            "text": f"SEC AI Analyst v2.1 | Powered by Groq (Llama 3.3) | {item_count} Items analyzed | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
         }
     }
     
@@ -685,7 +1126,7 @@ def send_ai_analysis_alert(filing: Dict, groq_analysis: Dict):
     try:
         response = requests.post(DISCORD_WEBHOOK_AI, json=payload, timeout=10)
         response.raise_for_status()
-        print(f"✓ AI Analysis sent to Channel #2: {ticker}")
+        print(f"✓ Multi-Item AI Analysis sent to Channel #2: {ticker} ({item_count} items)")
     except Exception as e:
         print(f"✗ Error sending AI analysis: {e}")
 
@@ -727,17 +1168,18 @@ def check_new_filings():
                 new_filings_count += 1
                 
                 # KROK 2: Pobierz dane Yahoo Finance
-                yahoo_data = get_yahoo_finance_data(ticker)
+                yahoo_response = get_yahoo_finance_data(ticker)
+                yahoo_formatted = yahoo_response.get('formatted', 'Brak danych Yahoo Finance') if yahoo_response else 'Brak danych Yahoo Finance'
                 time.sleep(1)
                 
-                # KROK 3: Analiza AI z Groq (TYLKO KLUCZOWE SEKCJE)
+                # KROK 3: Multi-Item AI Analysis z Groq
                 if analysis.get('full_document'):
                     groq_analysis = analyze_with_groq(
                         analysis['full_document'],
                         ticker,
                         filing['company'],
-                        yahoo_data,
-                        analysis['items']  # ✅ Przekaż wykryte Items
+                        yahoo_formatted,
+                        analysis['items']  # ✅ Przekaż WSZYSTKIE wykryte Items
                     )
                     
                     # KROK 4: Wyślij AI analysis (kanał #2)
@@ -762,11 +1204,11 @@ def check_new_filings():
 
 def main():
     print("\n" + "="*60)
-    print("SEC 8-K Monitor v2.0 - EXTENDED + AI (Groq)")
+    print("SEC 8-K Monitor v2.1 - MULTI-ITEM ANALYSIS + AI (Groq)")
     print("="*60)
     print(f"Companies monitored: {len(COMPANIES)}")
     print(f"Gist storage: {'✓ ENABLED' if GIST_TOKEN and GIST_ID else '✗ DISABLED'}")
-    print(f"AI Analysis: {'✓ ENABLED (Groq Llama 3.3)' if GROQ_API_KEY else '✗ DISABLED'}")
+    print(f"AI Analysis: {'✓ ENABLED (Groq Llama 3.3 - Multi-Item)' if GROQ_API_KEY else '✗ DISABLED'}")
     print("="*60)
     
     if not DISCORD_WEBHOOK_URL:
