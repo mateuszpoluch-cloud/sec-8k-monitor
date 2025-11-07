@@ -370,60 +370,6 @@ def save_processed_filings_to_gist(processed: Set[str]):
 # YAHOO FINANCE INTEGRATION
 # ============================================
 
-def get_yahoo_finance_mock_data(ticker: str) -> Dict:
-    """Mock data for development/testing when Yahoo Finance is unavailable"""
-    
-    # Mock data based on ticker (realistic values for context)
-    mock_data = {
-        'NVDA': {
-            'current_price': 145.20,
-            'market_cap': 3.57e12,
-            'consensus_eps': 2.85,
-            'target_price': 165.00,
-            'target_high': 200.00,
-            'target_low': 120.00,
-            'num_analysts': 48,
-            'pe_ratio': 51.0,
-            'forward_pe': 35.2,
-        },
-        'MSFT': {
-            'current_price': 415.30,
-            'market_cap': 3.09e12,
-            'consensus_eps': 12.45,
-            'target_price': 450.00,
-            'num_analysts': 52,
-            'pe_ratio': 33.4,
-        },
-        # Default for other tickers
-        'DEFAULT': {
-            'current_price': 50.00,
-            'market_cap': 10e9,
-            'consensus_eps': 2.00,
-            'target_price': 55.00,
-            'num_analysts': 15,
-            'pe_ratio': 25.0,
-        }
-    }
-    
-    data = mock_data.get(ticker, mock_data['DEFAULT']).copy()
-    
-    formatted = f"""=== YAHOO FINANCE DATA (MOCK) ===
-
-Current Price: ${data.get('current_price', 0):.2f}
-Market Cap: ${data.get('market_cap', 0)/1e9:.2f}B
-P/E Ratio: {data.get('pe_ratio', 0):.2f}
-Forward P/E: {data.get('forward_pe', 0):.2f}
-
---- ANALYST CONSENSUS ---
-Expected EPS (forward): ${data.get('consensus_eps', 0):.2f}
-Number of Analysts: {data.get('num_analysts', 0)}
-Target Price (mean): ${data.get('target_price', 0):.2f}
-Target Range: ${data.get('target_low', 0):.2f} - ${data.get('target_high', 0):.2f}
-
-Note: Using mock data - Yahoo Finance unavailable in this environment"""
-    
-    return {'raw': data, 'formatted': formatted}
-
 def get_yahoo_finance_data(ticker: str) -> Dict:
     """Pobiera dane z Yahoo Finance: konsensus EPS, revenue, target price, previous quarter"""
     try:
@@ -519,12 +465,13 @@ def get_yahoo_finance_data(ticker: str) -> Dict:
         return {'raw': yahoo_data, 'formatted': formatted_data}
         
     except ImportError:
-        print(f"   ✗ yfinance not installed - using mock data")
-        return get_yahoo_finance_mock_data(ticker)
+        print(f"   ✗ yfinance not installed - Yahoo Finance unavailable")
+        print(f"   → Bot will use standard market reactions without real-time data")
+        return {}
     except Exception as e:
         print(f"   ✗ Błąd Yahoo Finance dla {ticker}: {e}")
-        print(f"   → Fallback to mock data")
-        return get_yahoo_finance_mock_data(ticker)
+        print(f"   → Bot will use standard market reactions without real-time data")
+        return {}
 
 def format_yahoo_data_for_display(data: Dict) -> str:
     """Formatuje dane Yahoo Finance do czytelnego stringa dla Groq"""
@@ -723,8 +670,26 @@ def analyze_with_groq(document_text: str, ticker: str, company: str, yahoo_data:
         # ✅ Generuj pytania dla każdego Item
         analysis_questions = generate_item_specific_questions(sorted_items)
         
-        # ✅ GŁÓWNY PROMPT - MULTI-ITEM ANALYSIS
+        # ✅ GŁÓWNY PROMPT - MULTI-ITEM ANALYSIS + ANTI-HALLUCINATION
         full_prompt = f"""Jesteś ekspertem analizy finansowej SEC z 20-letnim doświadczeniem. Analizujesz filing 8-K który zawiera WIELE równoczesnych wydarzeń.
+
+🚨 CRITICAL ANTI-HALLUCINATION RULES (MUST FOLLOW):
+
+1. ✅ Use ONLY numbers that appear LITERALLY in the 8-K document below
+2. ❌ If "consensus", "analyst estimates", or "street expectations" are NOT in the document → Write "Not available in 8-K document"
+3. ❌ If deal value says "undisclosed", "not disclosed", or "to be determined" → Write "Undisclosed" - DO NOT estimate or guess
+4. ✅ Mark ALL price predictions as "ESTIMATED based on typical market reactions"
+5. ✅ When citing numbers, verify they exist in DOCUMENT TEXT below
+6. ❌ DO NOT invent premiums, multiples, or valuations if not explicitly stated
+7. ✅ If you're uncertain about ANY number → Say "Not explicitly stated in document"
+
+EXAMPLES:
+✅ CORRECT: "Revenue: $35.082B (stated in document)"
+❌ WRONG: "Revenue: $35.1B vs $33.2B consensus" (if consensus NOT in document)
+✅ CORRECT: "Deal value: Undisclosed"
+❌ WRONG: "Deal value: Estimated $500M" (if document says "undisclosed")
+
+═══════════════════════════════════════════════════════════════
 
 SPÓŁKA: {company} (Ticker: {ticker})
 
@@ -732,7 +697,7 @@ WYKRYTE ITEMS (od najważniejszego):
 {items_description}
 
 KONTEKST RYNKOWY:
-{yahoo_data if yahoo_data else "Brak danych Yahoo Finance"}
+{yahoo_data if yahoo_data else "⚠️ BRAK DANYCH YAHOO FINANCE - Używaj standardowych reakcji rynku na tego typu Items"}
 
 KLUCZOWE SEKCJE DOKUMENTU:
 {key_sections}
@@ -759,6 +724,8 @@ Teraz oceń ŁĄCZNY WPŁYW wszystkich Items na cenę akcji:
 - 1-3 dni: [+/-X% do +/-Y%]
 - 1-2 tygodnie: [+/-X% do +/-Y%]
 
+{"**⚠️ UWAGA:** Brak danych Yahoo Finance - prognozy oparte na typowych reakcjach rynku dla tego typu Items" if not yahoo_data else ""}
+
 **DOMINUJĄCY CZYNNIK:**
 [Który Item ma NAJWIĘKSZY wpływ na cenę? Dlaczego?]
 
@@ -776,7 +743,7 @@ Teraz oceń ŁĄCZNY WPŁYW wszystkich Items na cenę akcji:
 [Jak rynek zinterpretuje tę KOMBINACJĘ wydarzeń? Co będzie górą - fear czy greed?]
 
 **CONFIDENCE LEVEL:** [1-10]
-*Uwaga: Niższy confidence jeśli Items są sprzeczne (np. beat + CEO departure)*
+*Uwaga: Niższy confidence jeśli Items są sprzeczne (np. beat + CEO departure){"lub jeśli brak danych Yahoo Finance" if not yahoo_data else ""}*
 
 ---
 
@@ -784,13 +751,23 @@ Teraz oceń ŁĄCZNY WPŁYW wszystkich Items na cenę akcji:
 
 **KLUCZOWE DANE Z DOKUMENTU:**
 [Wyciągnij KONKRETNE liczby: revenue, EPS, guidance, ceny przejęć, koszty, etc.]
+⚠️ ONLY numbers that are LITERALLY in the document text above!
 
 **TON ZARZĄDU:**
 [Optymistyczny/Neutralny/Ostrożny/Pesymistyczny - z cytatami jeśli są]
 
 ---
 
-UŻYWAJ KONKRETNYCH LICZB Z DOKUMENTU. Bądź bezpośredni i praktyczny. Nie bój się jednoznacznych werdyktów."""
+🚨 FINAL VERIFICATION BEFORE RESPONDING:
+- Are ALL numbers I'm reporting actually in the document? YES/NO
+- Did I mark predictions as "ESTIMATED"? YES/NO
+- Did I avoid inventing consensus/estimates not in document? YES/NO
+
+UŻYWAJ KONKRETNYCH LICZB Z DOKUMENTU. Bądź bezpośredni i praktyczny. Nie bój się jednoznacznych werdyktów.
+{"Bez danych Yahoo Finance opieraj się na standardowych reakcjach rynku dla poszczególnych Items (np. earnings beat zwykle = +5-8%, CEO departure = -3-5%, etc.) i ZAWSZE oznaczaj to jako 'ESTIMATED'." if not yahoo_data else ""}
+
+REMEMBER: Better to say "Not in document" than to invent numbers!
+"""
 
         # ✅ Wywołaj Groq API
         url = "https://api.groq.com/openai/v1/chat/completions"
@@ -805,7 +782,7 @@ UŻYWAJ KONKRETNYCH LICZB Z DOKUMENTU. Bądź bezpośredni i praktyczny. Nie bó
             "messages": [
                 {
                     "role": "system",
-                    "content": "Jesteś ekspertem analizy SEC z 20-letnim doświadczeniem. Potrafisz ocenić jak KOMBINACJA różnych Items wpływa na cenę akcji. Twoje analizy są konkretne, używasz liczb i nie boisz się jednoznacznych werdyktów. Odpowiadasz w strukturalnym formacie."
+                    "content": "Jesteś ekspertem analizy SEC z 20-letnim doświadczeniem. Potrafisz ocenić jak KOMBINACJA różnych Items wpływa na cenę akcji. CRITICAL: Use ONLY numbers that appear literally in the document - never invent consensus, estimates, or deal values. If information is not in the document, say 'Not available in document'. Mark all predictions as 'ESTIMATED'. Twoje analizy są konkretne, używasz liczb z dokumentu i nie boisz się jednoznacznych werdyktów. Odpowiadasz w strukturalnym formacie."
                 },
                 {
                     "role": "user",
