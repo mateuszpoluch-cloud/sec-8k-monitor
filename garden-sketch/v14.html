@@ -1,0 +1,25 @@
+<!doctype html><html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ładowanie Szkicu ogrodu…</title><style>html,body{margin:0;min-height:100%;display:grid;place-items:center;background:#153d35;color:#fff;font-family:system-ui}#loading{padding:24px;text-align:center}</style></head><body><div id="loading">Uruchamianie stabilnej wersji pomiaru…</div><script>
+(async()=>{
+ const response=await fetch('./v8.html?base=v14',{cache:'no-store'});
+ if(!response.ok)throw new Error('Nie można pobrać aplikacji');
+ let html=await response.text();
+ const css=`<style id="ekoos-v14-layout">
+ @media (max-width:700px) and (orientation:portrait){
+   .ar-sheet{padding:9px 11px 10px!important;border-radius:20px!important;}
+   .ar-info{font-size:.9rem!important;margin:0 0 3px!important;line-height:1.15!important;}
+   .point-strip{padding:0 0 5px!important;}
+   .point-chip{padding:5px 9px!important;}
+   .ar-actions{gap:7px!important;}
+   .ar-btn{height:51px!important;border-radius:14px!important;}
+   .hint{display:none!important;}
+   .fallback-note{margin:0 0 4px!important;font-size:.67rem!important;}
+   .reticle{transform:translate(-50%,-50%) scale(.86)!important;}
+   .distance{top:max(88px,calc(env(safe-area-inset-top) + 76px))!important;}
+   .minimap{top:max(165px,calc(env(safe-area-inset-top) + 153px))!important;}
+ }
+ </style>`;
+ const patch='<scr'+'ipt src="./v10-fix.js?v=14"></scr'+'ipt><scr'+'ipt src="./v14-ruler.js?v=14"></scr'+'ipt>';
+ html=html.replace('</head>',css+'</head>').replace('</body>',patch+'</body>');
+ document.open();document.write(html);document.close();
+})().catch(err=>{document.body.innerHTML='<div id="loading"><b>Nie udało się uruchomić aplikacji.</b><br>'+String(err.message||err)+'</div>';});
+</script></body></html>
