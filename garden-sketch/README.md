@@ -4,10 +4,10 @@ Mobilna aplikacja webowa do wykonywania szkicu ogrodu na potrzeby projektu autom
 
 ## Aktualna wersja
 
-- Wersja produkcyjna: **v21**
+- Wersja produkcyjna: **v22**
 - Punkt wejścia: `garden-sketch/index.html`
 - GitHub Pages: `https://mateuszpoluch-cloud.github.io/sec-8k-monitor/garden-sketch/`
-- Bezpośredni adres wersji: `https://mateuszpoluch-cloud.github.io/sec-8k-monitor/garden-sketch/v21.html?v=21`
+- Bezpośredni adres wersji: `https://mateuszpoluch-cloud.github.io/sec-8k-monitor/garden-sketch/v22.html?v=22`
 
 ## Cel produktu
 
@@ -66,8 +66,12 @@ Aktualna wersja jest składana z:
 - `v18-plan.js` — arkusz A4/A3, skala i PDF,
 - `v19-drafting.js` — pionowy podgląd i kątomierz,
 - `v21-labels.js` — przełącznik napisów,
-- `v21.html` — loader aktualnej wersji,
+- `v22-pan-rysownik.js` — przekazanie poligonu do edytora Pan Rysownik,
+- `v22.html` — loader aktualnej wersji,
 - `index.html` — przekierowanie do aktualnej wersji.
+
+Integracja z Panem Rysownikiem działa w środowisku lokalnym i pozostaje ukryta
+na GitHub Pages do czasu wdrożenia prywatnego edytora.
 
 Ta architektura powstała podczas szybkiego prototypowania. Przed większą rozbudową warto scalić funkcje do jednej uporządkowanej wersji źródłowej.
 

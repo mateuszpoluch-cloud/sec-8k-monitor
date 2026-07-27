@@ -1,5 +1,12 @@
 # Historia zmian — Szkic ogrodu
 
+## v22
+
+- Dodano przycisk przekazujący zmierzony poligon do aplikacji Pan Rysownik.
+- Poligon jest przekazywany w metrach przez wersjonowany kontrakt danych.
+- Pan Rysownik automatycznie dobiera skalę, centruje obrys i otwiera go jako edytowalny wielokąt.
+- Integracja pozostaje ukryta na GitHub Pages, dopóki Pan Rysownik nie zostanie wdrożony prywatnie.
+
 ## v21
 
 - Dodano przełącznik `Aa` do ukrywania długości zapisanych boków i oznaczeń punktów.

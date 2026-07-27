@@ -10,7 +10,7 @@ Ten plik jest przeznaczony dla programisty lub agenta kodującego otwierającego
 
 ## Aktualna wersja
 
-- Produkcja: `v21.html`
+- Produkcja: `v22.html`
 - Wejście publiczne: `index.html`
 - Podstawa aplikacji: `v8.html`
 
