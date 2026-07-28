@@ -1,5 +1,12 @@
 # Historia zmian — Szkic ogrodu
 
+## v23
+
+- Dodano dotykową edycję wierzchołków bezpośrednio na arkuszu przed eksportem PDF.
+- Przeciągnięcie punktu zmienia długości sąsiednich boków i kąt w wierzchołku.
+- Po puszczeniu punktu plan, powierzchnia, obwód, wymiary i PDF są przeliczane.
+- Dodano cofanie korekt oraz ochronę przed skrzyżowaniem boków.
+
 ## v22
 
 - Dodano przycisk przekazujący zmierzony poligon do aplikacji Pan Rysownik.
