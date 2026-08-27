@@ -9,6 +9,7 @@
 - Rozszerzono historię o cofanie zmian oraz przywracanie pierwotnego wyniku pomiaru.
 - Dodano pełnoekranowy tryb edycji na telefonie, zoom przyciskami i gestem dwóch palców.
 - Poprawiono przesuwanie powiększonego arkusza jednym palcem w pustym miejscu rysunku.
+- Przeniesiono przesuwanie arkusza na `Pointer Events` i zmieniono klucz cache skryptów, aby telefony nie uruchamiały starszej wersji edytora.
 - Dodano siatkę 5 mm z mocniejszym podziałem co 25 mm jako pomoc przy symetrii i wyrównywaniu.
 - `v23` pozostaje wersją produkcyjną do czasu zakończenia testów.
 

@@ -128,24 +128,33 @@
   function installPinch(preview){
     preview.addEventListener('touchstart',event=>{
       if(!document.body.classList.contains('plan-editor-fullscreen'))return;
-      if(event.touches.length===1){
-        const target=event.target,editingHandle=target.closest?.('.plan-edit-handle');
-        const movingShape=mode==='move'&&target.closest?.('.shape');
-        if(editingHandle||movingShape)return;
-        const touch=event.touches[0];viewPan={x:touch.clientX,y:touch.clientY,left:preview.scrollLeft,top:preview.scrollTop};event.preventDefault();return;
-      }
       if(event.touches.length!==2||drag?.changed)return;
       viewPan=null;if(drag?.handle)drag.handle.classList.remove('dragging');drag=null;pinching=true;pinchDistance=touchDistance(event.touches);pinchZoom=viewZoom;event.preventDefault();
     },{passive:false});
     preview.addEventListener('touchmove',event=>{
       if(pinching&&event.touches.length===2){event.preventDefault();applyViewZoom(pinchZoom*touchDistance(event.touches)/Math.max(1,pinchDistance));return;}
-      if(viewPan&&event.touches.length===1){const touch=event.touches[0];event.preventDefault();preview.scrollLeft=viewPan.left-(touch.clientX-viewPan.x);preview.scrollTop=viewPan.top-(touch.clientY-viewPan.y);}
     },{passive:false});
-    preview.addEventListener('touchend',event=>{if(pinching&&event.touches.length<2)pinching=false;if(!event.touches.length)viewPan=null;},{passive:true});
+    preview.addEventListener('touchend',event=>{if(pinching&&event.touches.length<2)pinching=false;},{passive:true});
     preview.addEventListener('touchcancel',()=>{pinching=false;viewPan=null;},{passive:true});
     preview.addEventListener('wheel',event=>{
       if(!document.body.classList.contains('plan-editor-fullscreen')||!event.ctrlKey)return;event.preventDefault();applyViewZoom(viewZoom*(event.deltaY>0?.9:1.1));
     },{passive:false});
+  }
+  function installPointerPan(preview){
+    preview.addEventListener('pointerdown',event=>{
+      if(!document.body.classList.contains('plan-editor-fullscreen')||pinching||event.button>0)return;
+      const editingHandle=event.target.closest?.('.plan-edit-handle');
+      const movingShape=mode==='move'&&event.target.closest?.('.shape');
+      if(editingHandle||movingShape)return;
+      event.preventDefault();preview.setPointerCapture?.(event.pointerId);
+      viewPan={pointerId:event.pointerId,x:event.clientX,y:event.clientY,left:preview.scrollLeft,top:preview.scrollTop};
+    });
+    preview.addEventListener('pointermove',event=>{
+      if(!viewPan||pinching||event.pointerId!==viewPan.pointerId)return;
+      event.preventDefault();preview.scrollLeft=viewPan.left-(event.clientX-viewPan.x);preview.scrollTop=viewPan.top-(event.clientY-viewPan.y);
+    });
+    const finish=event=>{if(viewPan&&event.pointerId===viewPan.pointerId)viewPan=null;};
+    preview.addEventListener('pointerup',finish);preview.addEventListener('pointercancel',finish);
   }
   function decorateSelection(){document.querySelectorAll('.plan-edit-handle').forEach(h=>h.classList.toggle('selected',selected.includes(+h.dataset.index)));}
   function updateUi(){
@@ -170,7 +179,7 @@
     document.querySelector('#planDeletePoint').onclick=deleteSelected;document.querySelector('#planConnectPoints').onclick=connectSelected;document.querySelector('#planSimplify').onclick=simplify;
     document.querySelector('#planEditUndo').onclick=()=>{const previous=history.pop();if(!previous)return;restore(previous);selected=[];rerender();updateUi();notify('Cofnięto ostatnią zmianę.');};
     document.querySelector('#planEditReset').onclick=()=>{if(!baseline||!confirm('Przywrócić kształt bez wszystkich korekt wykonanych na arkuszu?'))return;restore(baseline);history.length=0;selected=[];rerender();updateUi();notify('Przywrócono wynik pomiaru.');};
-    document.querySelector('#newOne')?.addEventListener('click',()=>{baseline=null;history.length=0;selected=[];leaveFullscreen();});document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)document.body.classList.remove('plan-editor-fullscreen');});installPinch(preview);new MutationObserver(()=>{decoratePreview();applyViewZoom(viewZoom);}).observe(preview,{childList:true});decoratePreview();
+    document.querySelector('#newOne')?.addEventListener('click',()=>{baseline=null;history.length=0;selected=[];leaveFullscreen();});document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)document.body.classList.remove('plan-editor-fullscreen');});installPinch(preview);installPointerPan(preview);new MutationObserver(()=>{decoratePreview();applyViewZoom(viewZoom);}).observe(preview,{childList:true});decoratePreview();
   }
   install();
 })();

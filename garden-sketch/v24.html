@@ -11,7 +11,7 @@
    .point-strip{padding:0 0 5px!important;}.point-chip{padding:5px 9px!important;}.ar-actions{gap:7px!important;}.ar-btn{height:51px!important;border-radius:14px!important;}.hint{display:none!important;}.fallback-note{margin:0 0 4px!important;font-size:.67rem!important;}.reticle{transform:translate(-50%,-50%) scale(.86)!important;}.distance{top:max(88px,calc(env(safe-area-inset-top) + 76px))!important;}.minimap{top:max(165px,calc(env(safe-area-inset-top) + 153px))!important;}
  }
  </style>`;
- const patch='<scr'+'ipt src="./v10-fix.js?v=24"></scr'+'ipt><scr'+'ipt src="./v17-tape.js?v=24"></scr'+'ipt><scr'+'ipt src="./v20-soft-snap.js?v=24"></scr'+'ipt><scr'+'ipt src="./v24-plan.js?v=24"></scr'+'ipt><scr'+'ipt src="./v19-drafting.js?v=24"></scr'+'ipt><scr'+'ipt src="./v21-labels.js?v=24"></scr'+'ipt><scr'+'ipt src="./v22-pan-rysownik.js?v=24"></scr'+'ipt><scr'+'ipt src="./v24-plan-editor.js?v=24"></scr'+'ipt>';
+ const patch='<scr'+'ipt src="./v10-fix.js?v=24-4"></scr'+'ipt><scr'+'ipt src="./v17-tape.js?v=24-4"></scr'+'ipt><scr'+'ipt src="./v20-soft-snap.js?v=24-4"></scr'+'ipt><scr'+'ipt src="./v24-plan.js?v=24-4"></scr'+'ipt><scr'+'ipt src="./v19-drafting.js?v=24-4"></scr'+'ipt><scr'+'ipt src="./v21-labels.js?v=24-4"></scr'+'ipt><scr'+'ipt src="./v22-pan-rysownik.js?v=24-4"></scr'+'ipt><scr'+'ipt src="./v24-plan-editor.js?v=24-4"></scr'+'ipt>';
  html=html.replace('</head>',css+'</head>').replace('</body>',patch+'</body>');
  document.open();document.write(html);document.close();
 })().catch(err=>{document.body.innerHTML='<div id="loading"><b>Nie udało się uruchomić aplikacji.</b><br>'+String(err.message||err)+'</div>';});
