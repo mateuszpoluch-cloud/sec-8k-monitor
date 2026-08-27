@@ -1,5 +1,14 @@
 # Historia zmian — Szkic ogrodu
 
+## v24 (wersja testowa)
+
+- Dodano przesuwanie całego obrysu na arkuszu z uwzględnieniem pozycji w PDF.
+- Dodano zaznaczanie oraz usuwanie pojedynczego wierzchołka z połączeniem sąsiednich boków.
+- Dodano łączenie dwóch wybranych skrajnych wierzchołków i usuwanie punktów pomiędzy nimi.
+- Dodano automatyczne wykrywanie i usuwanie punktów leżących prawie na jednej prostej.
+- Rozszerzono historię o cofanie zmian oraz przywracanie pierwotnego wyniku pomiaru.
+- `v23` pozostaje wersją produkcyjną do czasu zakończenia testów.
+
 ## v23
 
 - Dodano dotykową edycję wierzchołków bezpośrednio na arkuszu przed eksportem PDF.
