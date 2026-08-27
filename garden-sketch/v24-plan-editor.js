@@ -1,6 +1,7 @@
 (() => {
   const history = [];
   let baseline = null, enabled = false, mode = 'vertex', selected = [], drag = null;
+  let viewZoom = 1, pinching = false, pinchDistance = 0, pinchZoom = 1;
 
   function points() { try { return Array.isArray(pts) ? pts : []; } catch { return []; } }
   const clonePoints = () => points().map(point => ({ ...point }));
@@ -58,7 +59,7 @@
     drag.path?.setAttribute('d',drag.rendered.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')+' Z');
   }
   function onPointerDown(event){
-    if(!enabled||event.button>0)return;
+    if(!enabled||pinching||event.button>0)return;
     const svg=event.currentTarget,handle=event.target.closest('.plan-edit-handle');
     if(mode==='move'){
       if(!event.target.closest('.shape')&&!handle)return;
@@ -72,7 +73,7 @@
     drag={kind:'vertex',pointerId:event.pointerId,svg,handle,vertex:vertices[index],label:[...svg.querySelectorAll('text.point')][index],path:svg.querySelector('path.shape'),rendered:vertices.map(v=>({x:+v.getAttribute('cx'),y:+v.getAttribute('cy')})),startVertex:{x:+vertices[index].getAttribute('cx'),y:+vertices[index].getAttribute('cy')},start:svgPoint(svg,event.clientX,event.clientY),transform,index,before:snapshot(),changed:false};setInfo(pointInfo(index));
   }
   function onPointerMove(event){
-    if(!drag||event.pointerId!==drag.pointerId)return;event.preventDefault();
+    if(pinching||!drag||event.pointerId!==drag.pointerId)return;event.preventDefault();
     const now=svgPoint(drag.svg,event.clientX,event.clientY),du=now.x-drag.start.x,dv=now.y-drag.start.y;drag.changed||=Math.hypot(du,dv)>.08;
     if(drag.kind==='move'){drag.moving.forEach(el=>el.setAttribute('transform',`translate(${du} ${dv})`));setInfo(`Przesunięcie na arkuszu: ${du.toFixed(1)} mm / ${dv.toFixed(1)} mm`);return;}
     const {A,B,s}=drag.transform,dx=(A*du+B*dv)/s,dy=(B*du-A*dv)/s,start=drag.before.points[drag.index];
@@ -108,6 +109,36 @@
   }
   function simplify(){const candidates=collinearCandidates();if(!candidates.length)return notify('Nie znaleziono zbędnych punktów na prostych.');const removable=candidates.slice(0,Math.max(0,points().length-3));if(!confirm(`Usunąć ${removable.length} punkt(y) leżące prawie na prostych?`))return;removeIndices(removable,`Usunięto ${removable.length} zbędnych punktów.`);}
   function setInfo(text){const el=document.querySelector('#planEditInfo');if(el)el.textContent=text;}
+  function clampZoom(value){return Math.max(.7,Math.min(4,Number(value)||1));}
+  function applyViewZoom(value){
+    viewZoom=clampZoom(value);const svg=document.querySelector('#preview>svg');
+    if(svg){svg.style.width=`${viewZoom*100}%`;svg.style.maxWidth='none';svg.style.height='auto';}
+    const label=document.querySelector('#planZoomValue');if(label)label.textContent=`${Math.round(viewZoom*100)}%`;
+  }
+  function enterFullscreen(){
+    document.body.classList.add('plan-editor-fullscreen');enabled=true;
+    const toggle=document.querySelector('#planEditToggle');if(toggle){toggle.classList.add('active');toggle.textContent='Zakończ edycję';}
+    document.querySelector('#preview>svg')?.classList.add('plan-editing');
+    document.documentElement.requestFullscreen?.().catch(()=>{});applyViewZoom(Math.max(1,viewZoom));updateUi();
+  }
+  function leaveFullscreen(){
+    document.body.classList.remove('plan-editor-fullscreen');if(document.fullscreenElement)document.exitFullscreen?.().catch(()=>{});applyViewZoom(1);
+  }
+  function touchDistance(touches){const a=touches[0],b=touches[1];return Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);}
+  function installPinch(preview){
+    preview.addEventListener('touchstart',event=>{
+      if(!document.body.classList.contains('plan-editor-fullscreen')||event.touches.length!==2)return;
+      if(drag?.changed)return;
+      if(drag?.handle)drag.handle.classList.remove('dragging');drag=null;pinching=true;pinchDistance=touchDistance(event.touches);pinchZoom=viewZoom;event.preventDefault();
+    },{passive:false});
+    preview.addEventListener('touchmove',event=>{
+      if(!pinching||event.touches.length!==2)return;event.preventDefault();applyViewZoom(pinchZoom*touchDistance(event.touches)/Math.max(1,pinchDistance));
+    },{passive:false});
+    preview.addEventListener('touchend',event=>{if(pinching&&event.touches.length<2)pinching=false;},{passive:true});
+    preview.addEventListener('wheel',event=>{
+      if(!document.body.classList.contains('plan-editor-fullscreen')||!event.ctrlKey)return;event.preventDefault();applyViewZoom(viewZoom*(event.deltaY>0?.9:1.1));
+    },{passive:false});
+  }
   function decorateSelection(){document.querySelectorAll('.plan-edit-handle').forEach(h=>h.classList.toggle('selected',selected.includes(+h.dataset.index)));}
   function updateUi(){
     const byId=id=>document.querySelector(id);if(byId('#planEditUndo'))byId('#planEditUndo').disabled=!history.length;if(byId('#planEditReset'))byId('#planEditReset').disabled=!baseline;
@@ -122,14 +153,16 @@
   }
   function install(){
     const preview=document.querySelector('#preview');if(!preview)return setTimeout(install,80);if(document.querySelector('#planEditTools'))return;
-    const tools=document.createElement('div');tools.id='planEditTools';tools.innerHTML=`<div class="plan-edit-head"><strong>Testowy edytor v24</strong><span id="planEditInfo">Włącz edycję, aby poprawić obrys.</span></div><div class="plan-edit-actions"><button id="planEditToggle" class="btn secondary" type="button">Włącz edycję</button><button id="planMoveMode" class="btn ghost" type="button">Przesuń obrys</button><button id="planDeletePoint" class="btn ghost" type="button" disabled>Usuń punkt</button><button id="planConnectPoints" class="btn ghost" type="button" disabled>Połącz skrajne</button><button id="planSimplify" class="btn ghost" type="button">Uprość proste</button><button id="planEditUndo" class="btn ghost" type="button" disabled>↶ Cofnij</button><button id="planEditReset" class="btn ghost" type="button" disabled>Przywróć pomiar</button></div>`;preview.before(tools);
-    const style=document.createElement('style');style.textContent=`#planEditTools{margin:12px 0 9px;padding:13px;border:1px solid var(--line);border-radius:15px;background:#f5faf7}.plan-edit-head{margin-bottom:10px}.plan-edit-head strong,.plan-edit-head span{display:block}.plan-edit-head span{margin-top:3px;color:var(--mut);font-size:.78rem}.plan-edit-actions{display:flex;gap:7px;flex-wrap:wrap}.plan-edit-actions .btn{min-height:39px;padding:8px 11px}#planEditToggle.active,#planMoveMode.active{background:#173f35;color:#fff;border-color:#173f35}#preview svg .plan-edit-handle{display:none;fill:#dfff73;fill-opacity:.92;stroke:#173f35;stroke-width:.8;vector-effect:non-scaling-stroke;cursor:grab;pointer-events:all}#preview svg.plan-editing{touch-action:none;user-select:none}#preview svg.plan-editing .plan-edit-handle{display:block}#preview svg.plan-editing .plan-edit-handle.selected{fill:#fff;stroke:#e08b20;stroke-width:1.5}#preview svg.plan-editing .plan-edit-handle.dragging{fill:#fff;stroke:#e08b20;stroke-width:1.5;cursor:grabbing}#preview svg.move-mode .shape{cursor:move;pointer-events:all}@media(max-width:700px){.plan-edit-actions{display:grid;grid-template-columns:1fr 1fr}.plan-edit-actions .btn{width:100%}}`;document.head.appendChild(style);
+    const tools=document.createElement('div');tools.id='planEditTools';tools.innerHTML=`<div class="plan-edit-head"><strong>Testowy edytor v24</strong><span id="planEditInfo">Włącz edycję, aby poprawić obrys.</span></div><div class="plan-edit-actions"><button id="planFullscreen" class="btn primary" type="button">⛶ Pełny ekran</button><button id="planFullscreenClose" class="btn primary" type="button">✕ Zamknij</button><button id="planEditToggle" class="btn secondary" type="button">Włącz edycję</button><button id="planMoveMode" class="btn ghost" type="button">Przesuń obrys</button><button id="planDeletePoint" class="btn ghost" type="button" disabled>Usuń punkt</button><button id="planConnectPoints" class="btn ghost" type="button" disabled>Połącz skrajne</button><button id="planSimplify" class="btn ghost" type="button">Uprość proste</button><button id="planEditUndo" class="btn ghost" type="button" disabled>↶ Cofnij</button><button id="planEditReset" class="btn ghost" type="button" disabled>Przywróć pomiar</button><div class="plan-zoom"><button id="planZoomOut" type="button" aria-label="Pomniejsz">−</button><strong id="planZoomValue">100%</strong><button id="planZoomIn" type="button" aria-label="Powiększ">＋</button><button id="planZoomReset" type="button">Dopasuj</button></div></div>`;preview.before(tools);
+    const style=document.createElement('style');style.textContent=`#planEditTools{margin:12px 0 9px;padding:13px;border:1px solid var(--line);border-radius:15px;background:#f5faf7}.plan-edit-head{margin-bottom:10px}.plan-edit-head strong,.plan-edit-head span{display:block}.plan-edit-head span{margin-top:3px;color:var(--mut);font-size:.78rem}.plan-edit-actions{display:flex;gap:7px;flex-wrap:wrap}.plan-edit-actions .btn{min-height:39px;padding:8px 11px}#planFullscreenClose,.plan-zoom{display:none}#planEditToggle.active,#planMoveMode.active{background:#173f35;color:#fff;border-color:#173f35}.plan-zoom{align-items:center;gap:5px;margin-left:auto}.plan-zoom button{min-height:39px;padding:7px 12px;border:1px solid #b9d2c9;border-radius:10px;background:#fff;color:#173f35;font-weight:900}.plan-zoom strong{min-width:52px;text-align:center}#preview svg .plan-edit-handle{display:none;fill:#dfff73;fill-opacity:.92;stroke:#173f35;stroke-width:.8;vector-effect:non-scaling-stroke;cursor:grab;pointer-events:all}#preview svg.plan-editing{touch-action:none;user-select:none}#preview svg.plan-editing .plan-edit-handle{display:block}#preview svg.plan-editing .plan-edit-handle.selected{fill:#fff;stroke:#e08b20;stroke-width:1.5}#preview svg.plan-editing .plan-edit-handle.dragging{fill:#fff;stroke:#e08b20;stroke-width:1.5;cursor:grabbing}#preview svg.move-mode .shape{cursor:move;pointer-events:all}body.plan-editor-fullscreen{overflow:hidden}body.plan-editor-fullscreen #planEditTools{position:fixed;z-index:5002;inset:0 0 auto;margin:0;border:0;border-radius:0;padding:max(8px,env(safe-area-inset-top)) 9px 8px;background:#eef7f3;box-shadow:0 3px 14px #0003}body.plan-editor-fullscreen .plan-edit-head{margin:0 0 6px}body.plan-editor-fullscreen .plan-edit-head strong{font-size:.86rem}body.plan-editor-fullscreen #planFullscreen,body.plan-editor-fullscreen #planEditToggle{display:none}body.plan-editor-fullscreen #planFullscreenClose,body.plan-editor-fullscreen .plan-zoom{display:flex}body.plan-editor-fullscreen #preview{position:fixed;z-index:5001;inset:112px 0 0;height:auto!important;min-height:0!important;aspect-ratio:auto!important;margin:0!important;padding:18px!important;border:0!important;border-radius:0!important;overflow:auto;background:#2e3a36!important;display:block}body.plan-editor-fullscreen #preview>svg{display:block;margin:auto;max-width:none!important;filter:drop-shadow(0 8px 20px #0008);touch-action:pan-x pan-y}body.plan-editor-fullscreen #preview .plan-edit-handle,body.plan-editor-fullscreen #preview .shape{touch-action:none}@media(max-width:700px){.plan-edit-actions{display:grid;grid-template-columns:1fr 1fr}.plan-edit-actions .btn{width:100%}body.plan-editor-fullscreen #planEditTools{max-height:126px;overflow:auto}body.plan-editor-fullscreen #preview{inset:126px 0 0}.plan-zoom{margin:0;grid-column:1/-1;justify-content:center}}`;document.head.appendChild(style);
     document.querySelector('#planEditToggle').onclick=e=>{enabled=!enabled;e.currentTarget.classList.toggle('active',enabled);e.currentTarget.textContent=enabled?'Zakończ edycję':'Włącz edycję';preview.querySelector('svg')?.classList.toggle('plan-editing',enabled);updateUi();};
+    document.querySelector('#planFullscreen').onclick=enterFullscreen;document.querySelector('#planFullscreenClose').onclick=leaveFullscreen;
+    document.querySelector('#planZoomIn').onclick=()=>applyViewZoom(viewZoom*1.2);document.querySelector('#planZoomOut').onclick=()=>applyViewZoom(viewZoom/1.2);document.querySelector('#planZoomReset').onclick=()=>applyViewZoom(1);
     document.querySelector('#planMoveMode').onclick=()=>{mode=mode==='move'?'vertex':'move';selected=[];preview.querySelector('svg')?.classList.toggle('move-mode',mode==='move');updateUi();decorateSelection();};
     document.querySelector('#planDeletePoint').onclick=deleteSelected;document.querySelector('#planConnectPoints').onclick=connectSelected;document.querySelector('#planSimplify').onclick=simplify;
     document.querySelector('#planEditUndo').onclick=()=>{const previous=history.pop();if(!previous)return;restore(previous);selected=[];rerender();updateUi();notify('Cofnięto ostatnią zmianę.');};
     document.querySelector('#planEditReset').onclick=()=>{if(!baseline||!confirm('Przywrócić kształt bez wszystkich korekt wykonanych na arkuszu?'))return;restore(baseline);history.length=0;selected=[];rerender();updateUi();notify('Przywrócono wynik pomiaru.');};
-    document.querySelector('#newOne')?.addEventListener('click',()=>{baseline=null;history.length=0;selected=[];});new MutationObserver(decoratePreview).observe(preview,{childList:true});decoratePreview();
+    document.querySelector('#newOne')?.addEventListener('click',()=>{baseline=null;history.length=0;selected=[];leaveFullscreen();});document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement)document.body.classList.remove('plan-editor-fullscreen');});installPinch(preview);new MutationObserver(()=>{decoratePreview();applyViewZoom(viewZoom);}).observe(preview,{childList:true});decoratePreview();
   }
   install();
 })();

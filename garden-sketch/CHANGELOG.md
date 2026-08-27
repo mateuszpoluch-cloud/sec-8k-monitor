@@ -7,6 +7,8 @@
 - Dodano łączenie dwóch wybranych skrajnych wierzchołków i usuwanie punktów pomiędzy nimi.
 - Dodano automatyczne wykrywanie i usuwanie punktów leżących prawie na jednej prostej.
 - Rozszerzono historię o cofanie zmian oraz przywracanie pierwotnego wyniku pomiaru.
+- Dodano pełnoekranowy tryb edycji na telefonie, zoom przyciskami i gestem dwóch palców.
+- Dodano siatkę 5 mm z mocniejszym podziałem co 25 mm jako pomoc przy symetrii i wyrównywaniu.
 - `v23` pozostaje wersją produkcyjną do czasu zakończenia testów.
 
 ## v23
