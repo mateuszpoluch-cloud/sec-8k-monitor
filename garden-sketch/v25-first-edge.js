@@ -32,5 +32,6 @@
     };
     document.querySelector('#startAr')?.addEventListener('click',clear);document.querySelector('#newOne')?.addEventListener('click',clear);
   }
+  window.ekoosFirstEdgeGuide={isLocked:()=>Boolean(direction)};
   install();
 })();

@@ -7,6 +7,7 @@
 - Dodano wizualną poziomicę osi P1→P2: odchylenie kątowe, kierunek lewo/prawo i boczną różnicę w metrach.
 - Dodano odwracalne prostowanie boków zbliżonych do 90° względem P1→P2.
 - Poprawiono prostowanie narożnika domykającego oraz ostatniego boku prowadzącego do P1.
+- Usunięto opóźniające wygładzanie bezpośredniego hit-testu, które powodowało odskok zapisywanego punktu od celownika.
 
 ## v24 (wersja testowa)
 
