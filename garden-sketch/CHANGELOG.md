@@ -11,6 +11,7 @@
 - Poprawiono przesuwanie powiększonego arkusza jednym palcem w pustym miejscu rysunku.
 - Przeniesiono przesuwanie arkusza na `Pointer Events` i zmieniono klucz cache skryptów, aby telefony nie uruchamiały starszej wersji edytora.
 - Dodano siatkę 5 mm z mocniejszym podziałem co 25 mm jako pomoc przy symetrii i wyrównywaniu.
+- Dodano pobieranie edytowalnego pliku projektu `.ekoos.json` do importu w aplikacji Pan Rysownik.
 - `v23` pozostaje wersją produkcyjną do czasu zakończenia testów.
 
 ## v23
