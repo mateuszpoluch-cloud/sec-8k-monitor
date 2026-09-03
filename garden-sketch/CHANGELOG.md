@@ -8,6 +8,7 @@
 - Dodano odwracalne prostowanie boków zbliżonych do 90° względem P1→P2.
 - Poprawiono prostowanie narożnika domykającego oraz ostatniego boku prowadzącego do P1.
 - Usunięto opóźniające wygładzanie bezpośredniego hit-testu, które powodowało odskok zapisywanego punktu od celownika.
+- Zrównano pozycję graficznego celownika ze środkiem promienia hit-testu WebXR, usuwając stałe pionowe przesunięcie punktu.
 
 ## v24 (wersja testowa)
 
