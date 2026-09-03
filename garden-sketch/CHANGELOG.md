@@ -1,5 +1,11 @@
 # Historia zmian — Szkic ogrodu
 
+## v25 (wersja testowa)
+
+- Dodano blokadę kierunku pierwszego boku P1→P2 po odejściu minimum 1 m od P1.
+- Dodano podgląd bocznej korekty pierwszego boku podczas pomiaru AR.
+- Dodano odwracalne prostowanie boków zbliżonych do 90° względem P1→P2.
+
 ## v24 (wersja testowa)
 
 - Dodano przesuwanie całego obrysu na arkuszu z uwzględnieniem pozycji w PDF.
