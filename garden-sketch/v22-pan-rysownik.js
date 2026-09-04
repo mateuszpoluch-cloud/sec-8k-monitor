@@ -3,8 +3,10 @@
 
   function currentPolygon() {
     try {
-      return Array.isArray(pts)
-        ? pts
+      const geometry = window.ekoosPlanApi?.geometry?.();
+      const sourcePoints = Array.isArray(geometry?.p) && geometry.p.length >= 3 ? geometry.p : pts;
+      return Array.isArray(sourcePoints)
+        ? sourcePoints
             .map(point => ({ x: Number(point.x), y: Number(point.y) }))
             .filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
         : [];
@@ -25,6 +27,7 @@
       unit: 'm',
       source: 'garden-sketch',
       polygon,
+      metadata: { orientation: 'garden-sketch-plan' },
     };
     const target = new URL('../pan-rysownik/index.html', window.location.href);
     target.hash = `garden-sketch=${encodeURIComponent(JSON.stringify(payload))}`;

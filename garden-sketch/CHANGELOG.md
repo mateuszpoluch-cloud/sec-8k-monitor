@@ -9,6 +9,7 @@
 - Poprawiono prostowanie narożnika domykającego oraz ostatniego boku prowadzącego do P1.
 - Usunięto opóźniające wygładzanie bezpośredniego hit-testu, które powodowało odskok zapisywanego punktu od celownika.
 - Zrównano pozycję graficznego celownika ze środkiem promienia hit-testu WebXR, usuwając stałe pionowe przesunięcie punktu.
+- Eksport do Pana Rysownika zachowuje orientację arkusza Garden Sketch, w tym poziome ustawienie najdłuższego boku.
 
 ## v24 (wersja testowa)
 

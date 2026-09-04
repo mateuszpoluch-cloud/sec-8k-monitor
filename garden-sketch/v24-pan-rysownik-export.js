@@ -1,11 +1,17 @@
 (()=>{
   const CONTRACT='ekoos.garden-polygon',VERSION=1;
   function copyPoints(){try{return Array.isArray(pts)?pts.map(point=>({x:Number(point.x),y:Number(point.y),projected:Boolean(point.projected)})):[];}catch(error){return[];}}
+  function planPoints(){
+    const raw=copyPoints(),geometry=window.ekoosPlanApi?.geometry?.();
+    return Array.isArray(geometry?.p)&&geometry.p.length>=3
+      ? geometry.p.map(point=>({x:Number(point.x),y:Number(point.y),projected:Boolean(point.projected)}))
+      : raw;
+  }
   function downloadProject(){
-    const polygon=copyPoints();
+    const polygon=planPoints();
     if(polygon.length<3){alert('Najpierw utwórz poligon z co najmniej trzech punktów.');return;}
     const payload={contract:CONTRACT,version:VERSION,unit:'m',source:'garden-sketch-v24',createdAt:new Date().toISOString(),polygon,
-      metadata:{area:typeof window.area==='function'?window.area(polygon):null,perimeter:typeof window.perimeter==='function'?window.perimeter(polygon):null}};
+      metadata:{orientation:'garden-sketch-plan',area:typeof window.area==='function'?window.area(polygon):null,perimeter:typeof window.perimeter==='function'?window.perimeter(polygon):null}};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),link=document.createElement('a');
     link.href=URL.createObjectURL(blob);link.download=`projekt-ogrodu-${new Date().toISOString().slice(0,10)}.ekoos.json`;link.click();
     setTimeout(()=>URL.revokeObjectURL(link.href),1000);
@@ -13,7 +19,7 @@
   function xmlEscape(value){return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]));}
   function xsfNumber(value){return Number(value).toFixed(6).replace(/\.?0+$/,'');}
   function xsfGeometry(){
-    const raw=copyPoints(),api=window.ekoosPlanApi,g=api?.geometry?.();
+    const raw=planPoints(),api=window.ekoosPlanApi,g=api?.geometry?.();
     const points=Array.isArray(g?.p)&&g.p.length>=3?g.p:raw;
     const page=g?.page||{w:297,h:210,name:'A4'};
     const xs=points.map(p=>p.x),ys=points.map(p=>p.y),width=Math.max(...xs)-Math.min(...xs),height=Math.max(...ys)-Math.min(...ys);
@@ -65,6 +71,6 @@ ${pointXml}
     const xsf=document.createElement('button');xsf.id='exportXsf';xsf.className='btn primary';xsf.type='button';xsf.textContent='Pobierz projekt XSF';
     xsf.addEventListener('click',downloadXsf);button.insertAdjacentElement('beforebegin',xsf);
   }
-  window.ekoosXsfApi={makeXsf};
+  window.ekoosXsfApi={makeXsf,planPoints};
   install();
 })();
