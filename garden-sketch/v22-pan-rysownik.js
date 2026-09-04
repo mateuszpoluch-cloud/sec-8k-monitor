@@ -27,6 +27,7 @@
       unit: 'm',
       source: 'garden-sketch',
       polygon,
+      obstacles: (window.ekoosGardenAreas?.obstacles || []).map(points => window.ekoosPlanApi?.orientPoints?.(points) || points),
       metadata: { orientation: 'garden-sketch-plan' },
     };
     const target = new URL('../pan-rysownik/index.html', window.location.href);

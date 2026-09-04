@@ -10,8 +10,9 @@
   function downloadProject(){
     const polygon=planPoints();
     if(polygon.length<3){alert('Najpierw utwórz poligon z co najmniej trzech punktów.');return;}
-    const payload={contract:CONTRACT,version:VERSION,unit:'m',source:'garden-sketch-v24',createdAt:new Date().toISOString(),polygon,
-      metadata:{orientation:'garden-sketch-plan',area:typeof window.area==='function'?window.area(polygon):null,perimeter:typeof window.perimeter==='function'?window.perimeter(polygon):null}};
+    const rawObstacles=Array.isArray(window.ekoosGardenAreas?.obstacles)?window.ekoosGardenAreas.obstacles:[],obstacles=rawObstacles.map(poly=>window.ekoosPlanApi?.orientPoints?.(poly)||poly);
+    const payload={contract:CONTRACT,version:VERSION,unit:'m',source:'garden-sketch-v26',createdAt:new Date().toISOString(),polygon,obstacles,
+      metadata:{orientation:'garden-sketch-plan',area:typeof window.area==='function'?Math.max(0,window.area(polygon)-obstacles.reduce((sum,poly)=>sum+window.area(poly),0)):null,perimeter:typeof window.perimeter==='function'?window.perimeter(polygon):null}};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),link=document.createElement('a');
     link.href=URL.createObjectURL(blob);link.download=`projekt-ogrodu-${new Date().toISOString().slice(0,10)}.ekoos.json`;link.click();
     setTimeout(()=>URL.revokeObjectURL(link.href),1000);
@@ -57,6 +58,7 @@ ${pointXml}
 </Scene>`;
   }
   function downloadXsf(){
+    if(window.ekoosGardenAreas?.obstacles?.length&&!confirm('Eksport XSF zawiera obecnie tylko obrys główny. Przeszkody prześlesz do Pana Rysownika przez plik JSON.\n\nPobrać XSF bez przeszkód?'))return;
     if(copyPoints().length<3){alert('Najpierw utwórz poligon z co najmniej trzech punktów.');return;}
     const blob=new Blob([makeXsf()],{type:'application/xml;charset=utf-8'}),link=document.createElement('a');
     link.href=URL.createObjectURL(blob);link.download=`szkic-ogrodu-${new Date().toISOString().slice(0,10)}.xsf`;link.click();

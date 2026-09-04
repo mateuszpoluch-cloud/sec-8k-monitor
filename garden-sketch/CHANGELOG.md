@@ -1,5 +1,12 @@
 # Historia zmian — Szkic ogrodu
 
+## v26 (wersja testowa)
+
+- Dodano rysowanie neutralnych przeszkód jako osobnych poligonów wewnętrznych w tej samej sesji AR.
+- Dodano odejmowanie powierzchni przeszkód od powierzchni użytkowej ogrodu.
+- Dodano przeszkody do arkusza SVG i eksportu PDF.
+- Dodano przeszkody do pliku roboczego JSON i importu w Panu Rysowniku jako osobne edytowalne poligony.
+
 ## v25 (wersja testowa)
 
 - Dodano blokadę kierunku pierwszego boku P1→P2 po odejściu minimum 1 m od P1.
