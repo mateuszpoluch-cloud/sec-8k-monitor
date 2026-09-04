@@ -28,6 +28,7 @@
       source: 'garden-sketch',
       polygon,
       obstacles: (window.ekoosGardenAreas?.obstacles || []).map(points => window.ekoosPlanApi?.orientPoints?.(points) || points),
+      lawns: window.ekoosPlanApi?.orientedLawns?.() || (window.ekoosGardenAreas?.lawns || []).map(lawn => ({ polygon: window.ekoosPlanApi?.orientPoints?.(lawn.polygon) || lawn.polygon, obstacles: (lawn.obstacles || []).map(points => window.ekoosPlanApi?.orientPoints?.(points) || points) })),
       metadata: { orientation: 'garden-sketch-plan' },
     };
     const target = new URL('../pan-rysownik/index.html', window.location.href);

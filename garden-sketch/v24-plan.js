@@ -23,9 +23,12 @@
   function orientationFrame(){const p=copyPoints();if(!p.length)return null;return{c:centreOf(p),angle:-edgeAngle(p,state.align)+state.turns*Math.PI/2};}
   function orientPoints(points){const frame=orientationFrame();if(!frame)return(points||[]).map(q=>({...q}));const co=Math.cos(frame.angle),si=Math.sin(frame.angle);return(points||[]).map(q=>{const x=q.x-frame.c.x,y=q.y-frame.c.y;return{...q,x:x*co-y*si,y:x*si+y*co};});}
   function orientedPoints(){return orientPoints(copyPoints());}
-  function obstaclePolygons(){return Array.isArray(window.ekoosGardenAreas?.obstacles)?window.ekoosGardenAreas.obstacles:[];}
+  function lawnAreas(){const stored=window.ekoosGardenAreas?.lawns;if(Array.isArray(stored)&&stored.length)return stored.map((lawn,index)=>({polygon:index===0?copyPoints():lawn.polygon,obstacles:lawn.obstacles||[]}));return[{polygon:copyPoints(),obstacles:Array.isArray(window.ekoosGardenAreas?.obstacles)?window.ekoosGardenAreas.obstacles:[]}];}
+  function orientedLawns(){return lawnAreas().map(lawn=>({polygon:orientPoints(lawn.polygon),obstacles:(lawn.obstacles||[]).map(orientPoints)}));}
+  function obstaclePolygons(){return lawnAreas().flatMap(lawn=>lawn.obstacles||[]);}
   function orientedObstacles(){return obstaclePolygons().map(poly=>orientPoints(poly));}
-  function netArea(){const outer=typeof window.area==='function'?window.area(copyPoints()):0,holes=typeof window.area==='function'?obstaclePolygons().reduce((sum,poly)=>sum+window.area(poly),0):0;return Math.max(0,outer-holes);}
+  function netArea(){return typeof window.area==='function'?lawnAreas().reduce((total,lawn)=>total+Math.max(0,window.area(lawn.polygon)-(lawn.obstacles||[]).reduce((sum,poly)=>sum+window.area(poly),0)),0):0;}
+  function totalPerimeter(){return typeof window.perimeter==='function'?lawnAreas().reduce((sum,lawn)=>sum+window.perimeter(lawn.polygon),0):0;}
   function pageSpec(){
     let w=state.format==='A3'?420:297,h=state.format==='A3'?297:210;
     if(state.orientation==='portrait')[w,h]=[h,w];
@@ -33,18 +36,18 @@
   }
   function standardScale(required){return SCALE_CHOICES.find(v=>v>=required)||Math.ceil(required/500)*500;}
   function geometry(){
-    const p=orientedPoints(),page=pageSpec();
+    const p=orientedPoints(),lawns=orientedLawns(),page=pageSpec();
     if(!p.length)return{p,page,scale:100,fit:true};
-    const b=boundsOf(p),margin=12,titleH=24,plot={x:margin,y:margin,w:page.w-margin*2,h:page.h-margin*2-titleH};
+    const all=lawns.flatMap(lawn=>[lawn.polygon,...lawn.obstacles].flat()),b=boundsOf(all.length?all:p),margin=12,titleH=24,plot={x:margin,y:margin,w:page.w-margin*2,h:page.h-margin*2-titleH};
     const required=Math.max((b.w*1000*1.10)/plot.w,(b.h*1000*1.10)/plot.h,1);
     const scale=state.scale==='auto'?standardScale(required):Number(state.scale);
     const mmPerM=1000/scale,drawW=b.w*mmPerM,drawH=b.h*mmPerM;
     const ox=plot.x+(plot.w-drawW)/2-b.minX*mmPerM+state.offsetX;
     const oy=plot.y+(plot.h-drawH)/2+b.maxY*mmPerM+state.offsetY;
     const map=q=>({x:ox+q.x*mmPerM,y:oy-q.y*mmPerM});
-    const corners=p.map(map),cx=corners.map(q=>q.x),cy=corners.map(q=>q.y);
+    const corners=(all.length?all:p).map(map),cx=corners.map(q=>q.x),cy=corners.map(q=>q.y);
     const fit=drawW<=plot.w&&drawH<=plot.h&&Math.min(...cx)>=plot.x&&Math.max(...cx)<=plot.x+plot.w&&Math.min(...cy)>=plot.y&&Math.max(...cy)<=plot.y+plot.h;
-    return{p,page,b,plot,scale,mmPerM,drawW,drawH,fit,map};
+    return{p,lawns,page,b,plot,scale,mmPerM,drawW,drawH,fit,map};
   }
   function niceBar(scale){
     const mmPerM=1000/scale;
@@ -55,30 +58,29 @@
   function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
   function planSvg(){
     const g=geometry();if(!g.p.length)return'';
-    const {page,p,map,scale,fit}=g,mp=p.map(map),path=mp.map((q,i)=>(i?'L':'M')+q.x.toFixed(2)+' '+q.y.toFixed(2)).join(' ')+' Z';
-    const centroid=centreOf(mp);
-    let dims='';
+    const {page,p,lawns,map,scale,fit}=g,mp=p.map(map),path=mp.map((q,i)=>(i?'L':'M')+q.x.toFixed(2)+' '+q.y.toFixed(2)).join(' ')+' Z';
+    let dims='',dots='';
     if(state.dimensions){
-      dims=p.map((q,i)=>{
-        const r=p[(i+1)%p.length],a=mp[i],b=mp[(i+1)%p.length],mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+      dims=lawns.map(lawn=>{const poly=lawn.polygon,mapped=poly.map(map),centroid=centreOf(mapped);return poly.map((q,i)=>{
+        const r=poly[(i+1)%poly.length],a=mapped[i],b=mapped[(i+1)%mapped.length],mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
         let nx=-(b.y-a.y),ny=b.x-a.x,n=Math.hypot(nx,ny)||1;nx/=n;ny/=n;
         if((mx-centroid.x)*nx+(my-centroid.y)*ny<0){nx=-nx;ny=-ny;}
         const x=mx+nx*5,y=my+ny*5,label=Math.hypot(r.x-q.x,r.y-q.y).toFixed(2).replace('.',',')+' m';
         return`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" class="dim">${label}</text>`;
-      }).join('');
+      }).join('')}).join('');
     }
-    const dots=mp.map((q,i)=>`<circle cx="${q.x}" cy="${q.y}" r="1.5" class="vertex"/><text x="${q.x+2.3}" y="${q.y-2.3}" class="point">P${i+1}</text>`).join('');
+    dots=lawns.map((lawn,lawnIndex)=>lawn.polygon.map(map).map((q,i)=>`<circle cx="${q.x}" cy="${q.y}" r="1.5" class="${lawnIndex?'secondary-vertex':'vertex'}"/><text x="${q.x+2.3}" y="${q.y-2.3}" class="point">T${lawnIndex+1}.P${i+1}</text>`).join('')).join('');
     const barM=niceBar(scale),barMm=barM*1000/scale,segments=4,sx=14,sy=page.h-31,seg=barMm/segments;
     let bar='';for(let i=0;i<segments;i++)bar+=`<rect x="${sx+i*seg}" y="${sy}" width="${seg}" height="4" class="bar ${i%2?'bar-light':'bar-dark'}"/>`;
     bar+=`<line x1="${sx}" y1="${sy+4}" x2="${sx+barMm}" y2="${sy+4}" class="thin"/><text x="${sx}" y="${sy+9}" class="small">0</text><text x="${sx+barMm}" y="${sy+9}" text-anchor="end" class="small">${barM.toLocaleString('pl-PL')} m</text>`;
-    const area=netArea(),per=typeof window.perimeter==='function'?window.perimeter(copyPoints()):0;
-    const obstacles=orientedObstacles().map((poly,index)=>{const mapped=poly.map(map),d=mapped.map((q,i)=>(i?'L':'M')+q.x.toFixed(2)+' '+q.y.toFixed(2)).join(' ')+' Z',c=centreOf(mapped);return`<path class="obstacle" d="${d}"/><text class="obstacle-label" x="${c.x}" y="${c.y}" text-anchor="middle">PRZESZKODA ${index+1}</text>`;}).join('');
+    const area=netArea(),per=totalPerimeter();
+    let obstacleIndex=0;const shapes=lawns.map((lawn,index)=>{const mapped=lawn.polygon.map(map),d=mapped.map((q,i)=>(i?'L':'M')+q.x.toFixed(2)+' '+q.y.toFixed(2)).join(' ')+' Z',c=centreOf(mapped),obstacles=lawn.obstacles.map(poly=>{obstacleIndex++;const op=poly.map(map),od=op.map((q,i)=>(i?'L':'M')+q.x.toFixed(2)+' '+q.y.toFixed(2)).join(' ')+' Z',oc=centreOf(op);return`<path class="obstacle" d="${od}"/><text class="obstacle-label" x="${oc.x}" y="${oc.y}" text-anchor="middle">PRZESZKODA ${obstacleIndex}</text>`;}).join('');return`<path class="shape${index?' secondary-shape':''}" d="${d}"/><text class="lawn-label" x="${c.x}" y="${c.y}" text-anchor="middle">TRAWNIK ${index+1}</text>${obstacles}`;}).join('');
     const warn=fit?'':`<g class="warning"><rect x="12" y="12" width="${page.w-24}" height="10" rx="2"/><text x="${page.w/2}" y="18.5" text-anchor="middle">Wybrana skala nie miesci rysunku na arkuszu</text></g>`;
     return`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${page.w} ${page.h}" width="${page.w}mm" height="${page.h}mm">
     <defs><pattern id="minorGrid" width="5" height="5" patternUnits="userSpaceOnUse"><path d="M 5 0 L 0 0 0 5" fill="none" stroke="#b9d2c9" stroke-width=".18"/></pattern><pattern id="majorGrid" width="25" height="25" patternUnits="userSpaceOnUse"><rect width="25" height="25" fill="url(#minorGrid)"/><path d="M 25 0 L 0 0 0 25" fill="none" stroke="#79a99a" stroke-width=".32"/></pattern></defs>
-    <style>.sheet{fill:#fff}.sheet-grid{fill:url(#majorGrid)}.border{fill:none;stroke:#173f35;stroke-width:.45}.shape{fill:#a9dbc2;fill-opacity:.45;stroke:#174c3e;stroke-width:.8;stroke-linejoin:round}.obstacle{fill:#fff8ef;stroke:#c7574d;stroke-width:.8;stroke-dasharray:2 1;stroke-linejoin:round}.obstacle-label{font:800 2.7px system-ui;fill:#9b3d35}.vertex{fill:#218b62;stroke:#fff;stroke-width:.5}.point{font:700 3px system-ui;fill:#174c3e}.dim{font:700 3.4px system-ui;fill:#173f35;paint-order:stroke;stroke:#fff;stroke-width:1.8px;stroke-linejoin:round}.title{font:800 5px system-ui;fill:#173f35}.meta{font:600 3px system-ui;fill:#355c52}.small{font:600 2.8px system-ui;fill:#173f35}.thin{stroke:#173f35;stroke-width:.35}.bar{stroke:#173f35;stroke-width:.3}.bar-dark{fill:#173f35}.bar-light{fill:#fff}.warning rect{fill:#fff0d4;stroke:#d39225;stroke-width:.4}.warning text{font:700 3px system-ui;fill:#8a5710}</style>
+    <style>.sheet{fill:#fff}.sheet-grid{fill:url(#majorGrid)}.border{fill:none;stroke:#173f35;stroke-width:.45}.shape{fill:#a9dbc2;fill-opacity:.45;stroke:#174c3e;stroke-width:.8;stroke-linejoin:round}.secondary-shape{fill:#c6e7d5}.lawn-label{font:800 3px system-ui;fill:#174c3e}.obstacle{fill:#fff8ef;stroke:#c7574d;stroke-width:.8;stroke-dasharray:2 1;stroke-linejoin:round}.obstacle-label{font:800 2.7px system-ui;fill:#9b3d35}.vertex,.secondary-vertex{fill:#218b62;stroke:#fff;stroke-width:.5}.point{font:700 3px system-ui;fill:#174c3e}.dim{font:700 3.4px system-ui;fill:#173f35;paint-order:stroke;stroke:#fff;stroke-width:1.8px;stroke-linejoin:round}.title{font:800 5px system-ui;fill:#173f35}.meta{font:600 3px system-ui;fill:#355c52}.small{font:600 2.8px system-ui;fill:#173f35}.thin{stroke:#173f35;stroke-width:.35}.bar{stroke:#173f35;stroke-width:.3}.bar-dark{fill:#173f35}.bar-light{fill:#fff}.warning rect{fill:#fff0d4;stroke:#d39225;stroke-width:.4}.warning text{font:700 3px system-ui;fill:#8a5710}</style>
     <rect class="sheet" width="${page.w}" height="${page.h}"/><rect class="sheet-grid" x="7" y="7" width="${page.w-14}" height="${page.h-31}"/><rect class="border" x="7" y="7" width="${page.w-14}" height="${page.h-14}"/>
-    ${warn}<path class="shape" d="${path}"/>${obstacles}${dims}${dots}${bar}
+    ${warn}${shapes}${dims}${dots}${bar}
     <line class="thin" x1="7" y1="${page.h-24}" x2="${page.w-7}" y2="${page.h-24}"/>
     <text class="title" x="${page.w-12}" y="${page.h-17}" text-anchor="end">SZKIC OGRODU</text>
     <text class="meta" x="${page.w-12}" y="${page.h-11}" text-anchor="end">Skala 1:${scale} • ${page.name} ${state.orientation==='landscape'?'poziomo':'pionowo'}</text>
@@ -102,16 +104,14 @@
     const rect=(x,y,w,h,fill=false)=>cmd.push(`${(x*k).toFixed(2)} ${py(y+h).toFixed(2)} ${(w*k).toFixed(2)} ${(h*k).toFixed(2)} re ${fill?'f':'S'}`);
     const text=(s,x,y,size=8,align='left')=>{const approx=s.length*size*.26;let xp=x*k;if(align==='center')xp-=approx;if(align==='right')xp-=approx*2;cmd.push(`BT /F1 ${size} Tf ${xp.toFixed(2)} ${py(y).toFixed(2)} Td (${pdfEscape(s)}) Tj ET`);};
     cmd.push('1 1 1 rg');rect(0,0,g.page.w,g.page.h,true);cmd.push('0.09 0.25 0.21 RG 0.45 w');rect(7,7,g.page.w-14,g.page.h-14,false);
-    const mp=g.p.map(g.map);cmd.push('0.66 0.86 0.76 rg 0.09 0.30 0.24 RG 1.7 w');
-    cmd.push(`${(mp[0].x*k).toFixed(2)} ${py(mp[0].y).toFixed(2)} m`);for(let i=1;i<mp.length;i++)cmd.push(`${(mp[i].x*k).toFixed(2)} ${py(mp[i].y).toFixed(2)} l`);cmd.push('h B');
-    for(const poly of orientedObstacles()){const mapped=poly.map(g.map);if(mapped.length<3)continue;cmd.push('1 0.97 0.92 rg 0.78 0.25 0.22 RG 1.4 w');cmd.push(`${(mapped[0].x*k).toFixed(2)} ${py(mapped[0].y).toFixed(2)} m`);for(let i=1;i<mapped.length;i++)cmd.push(`${(mapped[i].x*k).toFixed(2)} ${py(mapped[i].y).toFixed(2)} l`);cmd.push('h B');}
-    const c=centreOf(mp);
+    const mp=g.p.map(g.map);
+    for(const lawn of g.lawns){const mapped=lawn.polygon.map(g.map);cmd.push('0.66 0.86 0.76 rg 0.09 0.30 0.24 RG 1.7 w');cmd.push(`${(mapped[0].x*k).toFixed(2)} ${py(mapped[0].y).toFixed(2)} m`);for(let i=1;i<mapped.length;i++)cmd.push(`${(mapped[i].x*k).toFixed(2)} ${py(mapped[i].y).toFixed(2)} l`);cmd.push('h B');for(const poly of lawn.obstacles){const obstacle=poly.map(g.map);if(obstacle.length<3)continue;cmd.push('1 0.97 0.92 rg 0.78 0.25 0.22 RG 1.4 w');cmd.push(`${(obstacle[0].x*k).toFixed(2)} ${py(obstacle[0].y).toFixed(2)} m`);for(let i=1;i<obstacle.length;i++)cmd.push(`${(obstacle[i].x*k).toFixed(2)} ${py(obstacle[i].y).toFixed(2)} l`);cmd.push('h B');}}
     if(state.dimensions){
-      g.p.forEach((q,i)=>{const r=g.p[(i+1)%g.p.length],a=mp[i],b=mp[(i+1)%mp.length],mx=(a.x+b.x)/2,my=(a.y+b.y)/2;let nx=-(b.y-a.y),ny=b.x-a.x,n=Math.hypot(nx,ny)||1;nx/=n;ny/=n;if((mx-c.x)*nx+(my-c.y)*ny<0){nx=-nx;ny=-ny;}const label=Math.hypot(r.x-q.x,r.y-q.y).toFixed(2).replace('.',',')+' m',x=mx+nx*5,y=my+ny*5;cmd.push('1 1 1 rg');rect(x-label.length*1.0,y-2.6,label.length*2.0,4.5,true);cmd.push('0.09 0.25 0.21 rg');text(label,x,y+.8,8,'center');});
+      g.lawns.forEach(lawn=>{const poly=lawn.polygon,mapped=poly.map(g.map),c=centreOf(mapped);poly.forEach((q,i)=>{const r=poly[(i+1)%poly.length],a=mapped[i],b=mapped[(i+1)%mapped.length],mx=(a.x+b.x)/2,my=(a.y+b.y)/2;let nx=-(b.y-a.y),ny=b.x-a.x,n=Math.hypot(nx,ny)||1;nx/=n;ny/=n;if((mx-c.x)*nx+(my-c.y)*ny<0){nx=-nx;ny=-ny;}const label=Math.hypot(r.x-q.x,r.y-q.y).toFixed(2).replace('.',',')+' m',x=mx+nx*5,y=my+ny*5;cmd.push('1 1 1 rg');rect(x-label.length*1.0,y-2.6,label.length*2.0,4.5,true);cmd.push('0.09 0.25 0.21 rg');text(label,x,y+.8,8,'center');});});
     }
-    cmd.push('0.13 0.55 0.38 rg');mp.forEach((q,i)=>{rect(q.x-1,q.y-1,2,2,true);cmd.push('0.09 0.25 0.21 rg');text('P'+(i+1),q.x+2.2,q.y-2.2,7);cmd.push('0.13 0.55 0.38 rg');});
+    cmd.push('0.13 0.55 0.38 rg');g.lawns.forEach((lawn,lawnIndex)=>lawn.polygon.map(g.map).forEach((q,i)=>{rect(q.x-1,q.y-1,2,2,true);cmd.push('0.09 0.25 0.21 rg');text(`T${lawnIndex+1}.P${i+1}`,q.x+2.2,q.y-2.2,7);cmd.push('0.13 0.55 0.38 rg');}));
     const barM=niceBar(g.scale),barMm=barM*1000/g.scale,sx=14,sy=g.page.h-31,seg=barMm/4;for(let i=0;i<4;i++){cmd.push(i%2?'1 1 1 rg':'0.09 0.25 0.21 rg');rect(sx+i*seg,sy,seg,4,true);cmd.push('0.09 0.25 0.21 RG 0.5 w');rect(sx+i*seg,sy,seg,4,false);}line(sx,sy+4,sx+barMm,sy+4);cmd.push('0.09 0.25 0.21 rg');text('0',sx,sy+9,7);text(String(barM)+' m',sx+barMm,sy+9,7,'right');
-    line(7,g.page.h-24,g.page.w-7,g.page.h-24);text('SZKIC OGRODU',g.page.w-12,g.page.h-17,12,'right');text(`Skala 1:${g.scale}  ${g.page.name}`,g.page.w-12,g.page.h-11,8,'right');const ar=netArea(),pe=typeof window.perimeter==='function'?window.perimeter(copyPoints()):0;text(`Powierzchnia: ${ar.toFixed(1)} m2`,g.page.w/2,g.page.h-17,8,'center');text(`Obwod: ${pe.toFixed(1)} m`,g.page.w/2,g.page.h-11,8,'center');
+    line(7,g.page.h-24,g.page.w-7,g.page.h-24);text('SZKIC OGRODU',g.page.w-12,g.page.h-17,12,'right');text(`Skala 1:${g.scale}  ${g.page.name}`,g.page.w-12,g.page.h-11,8,'right');const ar=netArea(),pe=totalPerimeter();text(`Powierzchnia: ${ar.toFixed(1)} m2`,g.page.w/2,g.page.h-17,8,'center');text(`Obwod: ${pe.toFixed(1)} m`,g.page.w/2,g.page.h-11,8,'center');
     const stream=cmd.join('\n'),objects=[];objects[1]='<< /Type /Catalog /Pages 2 0 R >>';objects[2]='<< /Type /Pages /Kids [3 0 R] /Count 1 >>';objects[3]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W.toFixed(2)} ${H.toFixed(2)}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`;objects[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';objects[5]=`<< /Length ${new TextEncoder().encode(stream).length} >>\nstream\n${stream}\nendstream`;
     let pdf='%PDF-1.4\n',offsets=[0];for(let i=1;i<=5;i++){offsets[i]=new TextEncoder().encode(pdf).length;pdf+=`${i} 0 obj\n${objects[i]}\nendobj\n`;}const xref=new TextEncoder().encode(pdf).length;pdf+='xref\n0 6\n0000000000 65535 f \n';for(let i=1;i<=5;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';pdf+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
     download(`szkic-ogrodu-${state.format.toLowerCase()}-1-${g.scale}.pdf`,'application/pdf',pdf);
@@ -138,6 +138,7 @@
   window.ekoosPlanApi={
     geometry,
     orientPoints,
+    orientedLawns,
     updatePreview,
     getOffset:()=>({x:state.offsetX,y:state.offsetY}),
     setOffset:(x,y)=>{state.offsetX=Number(x)||0;state.offsetY=Number(y)||0;updatePreview();},

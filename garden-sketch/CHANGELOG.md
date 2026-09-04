@@ -1,5 +1,12 @@
 # Historia zmian — Szkic ogrodu
 
+## v27 (wersja testowa)
+
+- Dodano pomiar wielu niezależnych obszarów trawnika w jednej sesji AR i wspólnym układzie współrzędnych.
+- Każdy trawnik może mieć własne przeszkody, odejmowane wyłącznie od jego powierzchni.
+- Dodano osobne zestawienie powierzchni trawników oraz ich sumę.
+- Wszystkie trawniki są umieszczane na jednym arkuszu i przekazywane do Pana Rysownika jako osobne edytowalne poligony.
+
 ## v26 (wersja testowa)
 
 - Dodano rysowanie neutralnych przeszkód jako osobnych poligonów wewnętrznych w tej samej sesji AR.
