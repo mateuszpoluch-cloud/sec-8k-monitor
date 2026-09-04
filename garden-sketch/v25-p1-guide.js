@@ -13,7 +13,7 @@
   }
   function closingAngle(poly,current){
     const first={x:poly[1].x-poly[0].x,y:poly[1].y-poly[0].y},closing={x:poly[0].x-current.x,y:poly[0].y-current.y},den=Math.hypot(first.x,first.y)*Math.hypot(closing.x,closing.y);if(!den)return null;
-    const angle=Math.acos(Math.max(-1,Math.min(1,(first.x*closing.x+first.y*closing.y)/den)))*180/Math.PI;return Math.min(angle,180-angle);
+    return Math.acos(Math.max(-1,Math.min(1,(first.x*closing.x+first.y*closing.y)/den)))*180/Math.PI;
   }
   function install(){
     if(typeof frame!=='function'||typeof projectScreen!=='function'||typeof dist!=='function')return setTimeout(install,80);

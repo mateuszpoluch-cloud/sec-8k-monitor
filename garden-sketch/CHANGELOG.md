@@ -2,6 +2,7 @@
 
 ## v27 (wersja testowa)
 
+- Poprawiono prowadnicę domknięcia do P1: po przekroczeniu kąta prostego pokazuje wartości rozwarte powyżej 90°, zamiast ponownie je zmniejszać.
 - Dodano pomiar wielu niezależnych obszarów trawnika w jednej sesji AR i wspólnym układzie współrzędnych.
 - Każdy trawnik może mieć własne przeszkody, odejmowane wyłącznie od jego powierzchni.
 - Dodano osobne zestawienie powierzchni trawników oraz ich sumę.
